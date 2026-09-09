@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSA Virtual Laboratory — Small Primes</title>
+<style>
+  /* ======================================================================
+     STYLE. Kept simple on purpose: one readable theme, big enough type to
+     read from the back of a room (a "projector" requirement), high
+     contrast, and a single ".num" class used everywhere a number appears
+     so all numbers line up in a fixed-width (monospace) font.
+     ====================================================================== */
+
+  :root {
+    --bg: #f5f6f8;
+    --panel-bg: #ffffff;
+    --border: #d0d5dd;
+    --text: #1a1d23;
+    --muted: #5a6270;
+    --accent: #1a56db;
+    --accent-dark: #123a99;
+    --accent-bg: #e8eefd;
+    --prime: #1f9d55;
+    --prime-bg: #e3f9ec;
+    --composite-bg: #eceef1;
+    --error: #c0392b;
+    --error-bg: #fdecea;
+    --success: #1f9d55;
+    --success-bg: #e3f9ec;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+
+  .num, code, .mono {
+    font-family: "Consolas", "Courier New", monospace;
+  }
+
+  header {
+    background: var(--accent-dark);
+    color: white;
+    padding: 18px 24px;
+  }
+  header h1 { margin: 0 0 4px 0; font-size: 1.6em; }
+  header p { margin: 0; opacity: 0.9; font-size: 0.95em; }
+
+  nav.stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 24px;
+    background: var(--panel-bg);
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  nav.stepper button {
+    flex: 1 1 160px;
+    padding: 10px 8px;
+    font-size: 0.95em;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  nav.stepper button.active {
+    background: var(--accent);
+    border-color: var(--accent-dark);
+    color: white;
+  }
+  nav.stepper button:hover:not(.active) { background: var(--accent-bg); }
+
+  main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 24px 60px 24px;
+  }
+
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+
+  h2 { color: var(--accent-dark); border-bottom: 3px solid var(--accent-bg); padding-bottom: 6px; }
+  h3 { color: var(--text); margin-top: 1.6em; }
+
+  .card {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+
+  .label { color: var(--muted); font-size: 0.9em; }
+  .quantity {
+    font-size: 1.15em;
+    margin: 6px 0;
+  }
+  .quantity .sym { font-style: italic; color: var(--accent-dark); font-weight: 600; }
+  .quantity .val { font-weight: 700; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 0.95em;
+  }
+  th { background: var(--accent-bg); color: var(--accent-dark); }
+  tr.highlight { background: var(--success-bg); font-weight: 700; }
+  tr.rejected td { color: var(--muted); text-decoration: line-through; }
+
+  .msg {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-weight: 600;
+  }
+  .msg.info { background: var(--accent-bg); color: var(--accent-dark); }
+  .msg.error { background: var(--error-bg); color: var(--error); }
+  .msg.success { background: var(--success-bg); color: var(--success); }
+
+  button.action {
+    padding: 10px 18px;
+    font-size: 1em;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 2px solid var(--accent-dark);
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    margin: 6px 6px 6px 0;
+  }
+  button.action:hover { background: var(--accent-dark); }
+  button.action:disabled {
+    background: var(--composite-bg);
+    border-color: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: var(--panel-bg);
+    color: var(--accent-dark);
+  }
+  button.secondary:hover { background: var(--accent-bg); }
+
+  input[type=number], input[type=text] {
+    font-size: 1em;
+    padding: 8px 10px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    font-family: "Consolas", "Courier New", monospace;
+  }
+  label.field { display: inline-block; margin: 6px 12px 6px 0; }
+
+  /* --- Sieve grid (Panel 1) --- */
+  #sieveGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: 4px;
+    margin: 14px 0;
+  }
+  .cell {
+    border-radius: 6px;
+    padding: 6px 2px;
+    text-align: center;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 0.85em;
+    border: 2px solid transparent;
+    user-select: none;
+  }
+  .cell.prime { background: var(--prime-bg); color: var(--prime); cursor: pointer; font-weight: 700; }
+  .cell.prime:hover { border-color: var(--prime); }
+  .cell.composite { background: var(--composite-bg); color: var(--muted); cursor: default; }
+  .cell.composite .elim { display: block; font-size: 0.75em; }
+  .cell.selected-p { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-dark); }
+  .cell.selected-q { border-color: #b5179e; background: #fbe7fb; color: #8a0e78; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.9em; margin-top: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 16px; height: 16px; border-radius: 4px; display: inline-block; }
+
+  .step-dots { display: flex; gap: 8px; margin: 10px 0 18px 0; }
+  .step-dots span {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--border); display: inline-block;
+  }
+  .step-dots span.done { background: var(--accent); }
+
+  details { margin: 10px 0; }
+  details summary {
+    cursor: pointer; font-weight: 700; padding: 8px;
+    background: var(--accent-bg); border-radius: 6px; color: var(--accent-dark);
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    padding: 30px 10px;
+    font-size: 0.85em;
+  }
+
+  @media (max-width: 700px) {
+    body { font-size: 16px; }
+    nav.stepper button { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>RSA Virtual Laboratory</h1>
+  <p>Key generation, encryption, decryption, and the small-primes attack — all worked out with real numbers, step by step.</p>
+</header>
+
+<nav class="stepper" id="panelNav">
+  <button data-panel="panel-primes" class="active">1. Prime Selection</button>
+  <button data-panel="panel-keygen">2. Key Generation</button>
+  <button data-panel="panel-cipher">3. Encrypt / Decrypt</button>
+  <button data-panel="panel-attack">4. Attack</button>
+  <button data-panel="panel-selftest">5. Self-Test</button>
+</nav>
+
+<main>
+
+  <!-- ================================================================
+       PANEL 1: PRIME SELECTION
+       ================================================================ -->
+  <section class="panel active" id="panel-primes">
+    <h2>1. Prime Selection</h2>
+    <p>RSA starts with two different prime numbers, traditionally called
+       <span class="mono">p</span> and <span class="mono">q</span>. The
+       grid below is the <strong>Sieve of Eratosthenes</strong>: every
+       number from 2 up to the limit is checked, and any number that is a
+       multiple of a smaller prime is crossed out (a "composite"). What's
+       left uncrossed is prime.</p>
+
+    <label class="field">
+      Sieve limit (2–2000):
+      <input type="number" id="sieveLimitInput" value="200" min="2" max="2000" class="num">
+    </label>
+    <button class="action" id="rebuildSieveBtn">Rebuild grid</button>
+    <button class="action secondary" id="randomPairBtn">🎲 Random prime pair</button>
+    <button class="action secondary" id="resetSelectionBtn">Reset selection</button>
+    <p class="label">
+      Capped at 2000 so the grid renders instantly and stays readable on a
+      projector. (The assignment's outer safety limit is 10⁶ — see the report.)
+    </p>
+    <div id="primesMsg"></div>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--prime-bg)"></span> prime (click to select)</span>
+      <span><span class="swatch" style="background:var(--composite-bg)"></span> composite (small number = smallest factor that eliminated it)</span>
+      <span><span class="swatch" style="background:var(--accent-bg)"></span> selected as p</span>
+      <span><span class="swatch" style="background:#fbe7fb"></span> selected as q</span>
+    </div>
+
+    <div id="sieveGrid"></div>
+
+    <div class="card">
+      <div class="quantity"><span class="sym">p</span> (first prime): <span class="val num" id="chosenP">not chosen</span></div>
+      <div class="quantity"><span class="sym">q</span> (second prime): <span class="val num" id="chosenQ">not chosen</span></div>
+      <button class="action" id="toKeygenBtn">Continue to Key Generation ▶</button>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       PANEL 2: KEY GENERATION WALKTHROUGH
+       ================================================================ -->
+  <section class="panel" id="panel-keygen">
+    <h2>2. Key Generation Walkthrough</h2>
+    <div id="keygenPrereqMsg"></div>
+    <div id="keygenContent" style="display:none;">
+      <div class="step-dots" id="keygenDots"></div>
+      <div id="keygenCard" class="card"></div>
+      <button class="action secondary" id="keygenPrevBtn">◀ Back</button>
+      <button class="action" id="keygenNextBtn">Next ▶</button>
+      <div style="margin-top:18px;">
+        <button class="action" id="toCipherBtn" style="display:none;">Continue to Encrypt / Decrypt ▶</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       PANEL 3: ENCRYPT / DECRYPT
+       ================================================================ -->
+  <section class="panel" id="panel-cipher">
+    <h2>3. Encrypt / Decrypt</h2>
+    <div id="cipherPrereqMsg"></div>
+    <div id="cipherContent" style="display:none;">
+
+      <div class="card">
+        <div class="quantity">Public key: (<span class="sym">e</span> = <span class="num" id="pubE"></span>, <span class="sym">n</span> = <span class="num" id="pubN"></span>)</div>
+        <div class="quantity">Private key: (<span class="sym">d</span> = <span class="num" id="privD"></span>, <span class="sym">n</span> = <span class="num" id="privN"></span>)</div>
+      </div>
+
+      <h3>Encrypt</h3>
+      <label class="field"><input type="radio" name="msgMode" value="int" checked> Integer message (0 ≤ m &lt; n)</label>
+      <label class="field"><input type="radio" name="msgMode" value="text"> Short text message</label>
+      <br>
+      <label class="field">
+        <span id="msgInputLabel">m (message):</span>
+        <input type="text" id="msgInput" class="num" value="65">
+      </label>
+      <button class="action" id="encryptBtn">Encrypt ▶</button>
+      <div id="encryptMsg"></div>
+      <div id="encryptResult"></div>
+
+      <h3>Decrypt</h3>
+      <label class="field">
+        Ciphertext block(s) (comma-separated if more than one):
+        <input type="text" id="cipherInput" class="num" style="width:320px;">
+      </label>
+      <button class="action" id="decryptBtn">Decrypt ▶</button>
+      <div id="decryptMsg"></div>
+      <div id="decryptResult"></div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       PANEL 4: ATTACK
+       ================================================================ -->
+  <section class="panel" id="panel-attack">
+    <h2>4. Attack: Break This Key</h2>
+    <div id="attackPrereqMsg"></div>
+    <div id="attackContent" style="display:none;">
+      <p>Only the <strong>public</strong> key (<span class="sym">e</span>,
+         <span class="sym">n</span>) is used below. If <span class="sym">n</span>
+         is small, an attacker doesn't need to break any hard math problem —
+         they just try dividing it by every number up to
+         <span class="mono">√n</span> until something divides evenly.</p>
+      <div class="card">
+        <div class="quantity">Attacking public key: (<span class="sym">e</span> = <span class="num" id="atkE"></span>, <span class="sym">n</span> = <span class="num" id="atkN"></span>)</div>
+        <button class="action" id="breakKeyBtn">🔓 Break this key</button>
+      </div>
+      <div id="attackResult"></div>
+
+      <h3>Factoring time vs. modulus size (live benchmark)</h3>
+      <p>This runs trial division, right here in the browser, on a few
+         small semiprimes of increasing bit length, so you can see the
+         attempt count roughly double with every extra bit.</p>
+      <button class="action secondary" id="benchmarkBtn">Run factoring benchmark</button>
+      <div id="benchmarkResult"></div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       PANEL 5: SELF-TEST
+       ================================================================ -->
+  <section class="panel" id="panel-selftest">
+    <h2>5. Self-Test</h2>
+    <p>Runs the same known-answer vector as the Python test suite
+       (<span class="mono">p=61, q=53, e=17 → n=3233, d=413,
+       encrypt(65)=2790, decrypt(2790)=65</span>), plus a handful of
+       random small round trips, entirely in this browser tab. If every
+       row below is green, the JavaScript in this page agrees with the
+       Python implementation.</p>
+      <button class="action" id="runSelfTestBtn">▶ Run self-test</button>
+      <div id="selfTestResult"></div>
+  </section>
+
+</main>
+
+<footer>
+  RSA Virtual Laboratory — offline, single-file, no external dependencies.
+  See <span class="mono">NOTES.md</span> for how each function here maps to the Python implementation.
+</footer>
+
+<script>
+/* ==========================================================================
+   RSA VIRTUAL LAB — JAVASCRIPT
+
+   This file is organised the same way as the Python package it mirrors:
+
+     mathutils  -> gcd, lcm, egcd, egcdSteps, modInv, modExp, modExpSteps
+     primes     -> sieveOfEratosthenes, isPrimeTrial, isPrimeMillerRabin
+     keygen     -> totient, carmichaelLambda, chooseE, generateKeys
+     cipher     -> textToBlocks, blocksToText, encryptValue, decryptValue
+     attack     -> factorN, recoverD
+     UI         -> everything below the "UI" banner: reading the state
+                    object, drawing the panels, and wiring up buttons.
+
+   All RSA-sized numbers (p, q, n, e, d, messages, ciphertexts) are kept as
+   JavaScript BigInt (written with a trailing "n", e.g. 2n) rather than
+   ordinary numbers, because ordinary JavaScript numbers lose precision
+   above 2^53 and RSA arithmetic must never silently round. Loop counters,
+   array indices and timings stay as ordinary numbers.
+   ========================================================================== */
+
+"use strict";
+
+/* ---------- tiny DOM helpers ------------------------------------------- */
+
+function $(id) { return document.getElementById(id); }
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const key in attrs) {
+      if (key === "class") node.className = attrs[key];
+      else if (key === "text") node.textContent = attrs[key];
+      else if (key === "html") node.innerHTML = attrs[key];
+      else node.setAttribute(key, attrs[key]);
+    }
+  }
+  if (children) {
+    for (const child of children) node.appendChild(child);
+  }
+  return node;
+}
+
+/* Show a message inside a container div. type is "info" | "error" | "success". */
+function showMessage(container, text, type) {
+  container.innerHTML = "";
+  if (!text) return;
+  container.appendChild(el("div", { class: "msg " + type, text: text }));
+}
+
+/* ==========================================================================
+   MATHUTILS  (mirrors rsa/mathutils.py)
+   ========================================================================== */
+
+// Greatest common divisor of two non-negative BigInts.
+// Counterpart: rsa.mathutils.gcd
+function gcd(a, b) {
+  while (b !== 0n) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a;
+}
+
+// Least common multiple of two non-negative BigInts.
+// Counterpart: rsa.mathutils.lcm
+function lcm(a, b) {
+  if (a === 0n || b === 0n) return 0n;
+  return (a / gcd(a, b)) * b;
+}
+
+// Extended Euclidean algorithm: returns [g, x, y] with a*x + b*y === g.
+// Counterpart: rsa.mathutils.egcd
+function egcd(a, b) {
+  let oldR = a, r = b;
+  let oldS = 1n, s = 0n;
+  let oldT = 0n, t = 1n;
+  while (r !== 0n) {
+    const q = oldR / r; // BigInt division truncates toward zero, same as
+                         // Python's // does for these non-negative inputs.
+    [oldR, r] = [r, oldR - q * r];
+    [oldS, s] = [s, oldS - q * s];
+    [oldT, t] = [t, oldT - q * t];
+  }
+  return [oldR, oldS, oldT];
+}
+
+// Extended Euclidean algorithm, but returns every row of the textbook
+// table instead of just the final answer, so the UI can show the working.
+// Counterpart: rsa.mathutils.egcd_steps
+function egcdSteps(a, b) {
+  const rows = [];
+  let oldR = a, r = b;
+  let oldS = 1n, s = 0n;
+  let oldT = 0n, t = 1n;
+
+  rows.push({ i: 0, r: oldR, q: null, s: oldS, t: oldT });
+
+  let i = 1;
+  while (r !== 0n) {
+    const q = oldR / r;
+    rows[rows.length - 1].q = q; // the quotient belongs to the row that produced it
+
+    [oldR, r] = [r, oldR - q * r];
+    [oldS, s] = [s, oldS - q * s];
+    [oldT, t] = [t, oldT - q * t];
+
+    rows.push({ i: i, r: oldR, q: null, s: oldS, t: oldT });
+    i += 1;
+  }
+  return rows;
+}
+
+// Modular inverse of a mod m: the x in [0, m) with (a*x) % m === 1.
+// Throws if no inverse exists (gcd(a, m) !== 1).
+// Counterpart: rsa.mathutils.modinv
+function modInv(a, m) {
+  const [g, x] = egcd(((a % m) + m) % m, m);
+  if (g !== 1n) {
+    throw new Error("no inverse: gcd(" + a + ", " + m + ") = " + g + ", not 1");
+  }
+  return ((x % m) + m) % m;
+}
+
+// base^exp mod mod, via left-to-right square-and-multiply.
+// Counterpart: rsa.mathutils.mod_exp
+function modExp(base, exp, mod) {
+  if (mod === 1n) return 0n;
+  let result = 1n;
+  base = ((base % mod) + mod) % mod;
+  const bits = exp.toString(2); // e.g. 13n -> "1101"
+  for (const bit of bits) {
+    result = (result * result) % mod;
+    if (bit === "1") {
+      result = (result * base) % mod;
+    }
+  }
+  return result;
+}
+
+// Same as modExp, but returns one row per exponent bit so the UI can show
+// the square-and-multiply table.
+// Counterpart: rsa.mathutils.mod_exp_steps
+function modExpSteps(base, exp, mod) {
+  const baseMod = mod === 1n ? 0n : (((base % mod) + mod) % mod);
+  const bits = exp.toString(2);
+  const rows = [];
+  let result = 1n;
+
+  for (let idx = 0; idx < bits.length; idx++) {
+    const bit = bits[idx];
+    const before = result;
+    const afterSquare = mod === 1n ? 0n : (result * result) % mod;
+    const multiplied = bit === "1";
+    const afterMultiply = multiplied
+      ? (mod === 1n ? 0n : (afterSquare * baseMod) % mod)
+      : afterSquare;
+    result = afterMultiply;
+
+    rows.push({
+      step: idx + 1,
+      bitIndex: idx,
+      bit: bit,
+      resultBefore: before,
+      resultAfterSquare: afterSquare,
+      multiplied: multiplied,
+      resultAfterMultiply: afterMultiply,
+      result: result,
+    });
+  }
+  return { baseMod: baseMod, bits: bits, rows: rows };
+}
+
+/* ==========================================================================
+   PRIMES  (mirrors rsa/primes.py)
+   ========================================================================== */
+
+// Runs the sieve up to `limit` (an ordinary JS number, since the grid is
+// capped small). Returns { primes: [numbers], eliminatedBy: Map(number -> smallest prime factor) }.
+// Counterpart: rsa.primes.sieve_of_eratosthenes (plus, for the elimination
+// labels the grid shows, similar bookkeeping to what a hand-drawn sieve
+// table would record -- there's no direct Python counterpart for that part
+// since Part 1 only needs the list of primes back).
+function sieveOfEratosthenes(limit) {
+  const isComposite = new Array(limit + 1).fill(false);
+  const eliminatedBy = new Map();
+  const primes = [];
+
+  for (let candidate = 2; candidate <= limit; candidate++) {
+    if (!isComposite[candidate]) {
+      primes.push(candidate);
+      for (let multiple = candidate * candidate; multiple <= limit; multiple += candidate) {
+        if (!isComposite[multiple]) {
+          isComposite[multiple] = true;
+          eliminatedBy.set(multiple, candidate);
+        }
+      }
+    }
+  }
+  return { primes: primes, eliminatedBy: eliminatedBy };
+}
+
+// Trial division primality test on a BigInt.
+// Counterpart: rsa.primes.is_prime_trial
+function isPrimeTrial(n) {
+  if (n < 2n) return false;
+  if (n === 2n || n === 3n) return true;
+  if (n % 2n === 0n) return false;
+  let divisor = 3n;
+  while (divisor * divisor <= n) {
+    if (n % divisor === 0n) return false;
+    divisor += 2n;
+  }
+  return true;
+}
+
+// Deterministic Miller-Rabin, same fixed witness set as the Python code
+// (valid for every n this lab will ever generate).
+// Counterpart: rsa.primes.is_prime_miller_rabin
+const MILLER_RABIN_WITNESSES = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n];
+
+function isPrimeMillerRabin(n) {
+  if (n < 2n) return false;
+  for (const p of MILLER_RABIN_WITNESSES) {
+    if (n === p) return true;
+    if (n % p === 0n) return false;
+  }
+
+  let d = n - 1n;
+  let s = 0n;
+  while (d % 2n === 0n) {
+    d /= 2n;
+    s += 1n;
+  }
+
+  for (const a of MILLER_RABIN_WITNESSES) {
+    let x = modExp(a, d, n);
+    if (x === 1n || x === n - 1n) continue;
+    let passed = false;
+    for (let r = 0n; r < s - 1n; r++) {
+      x = modExp(x, 2n, n);
+      if (x === n - 1n) { passed = true; break; }
+    }
+    if (!passed) return false;
+  }
+  return true;
+}
+
+/* ==========================================================================
+   KEYGEN  (mirrors rsa/keygen.py)
+   ========================================================================== */
+
+// phi(n) = (p-1)*(q-1). Counterpart: rsa.keygen.totient
+function totient(p, q) { return (p - 1n) * (q - 1n); }
+
+// lambda(n) = lcm(p-1, q-1). Counterpart: rsa.keygen.carmichael_lambda
+function carmichaelLambda(p, q) { return lcm(p - 1n, q - 1n); }
+
+// Same preferred-exponent list as Python's _choose_e, in the same order.
+const PREFERRED_E_CANDIDATES = [65537n, 257n, 17n, 5n, 3n];
+
+// Picks a default public exponent e with 1 < e < lambda and gcd(e, lambda) == 1.
+// Returns { e, candidates } where candidates records every e that was tried.
+// Counterpart: rsa.keygen._choose_e
+function chooseE(lam) {
+  const candidates = [];
+  for (const e of PREFERRED_E_CANDIDATES) {
+    if (e >= lam) {
+      candidates.push({ e: e, gcdWithLambda: null, accepted: false, reason: "e >= lambda(n)" });
+      continue;
+    }
+    const g = gcd(e, lam);
+    const accepted = g === 1n;
+    candidates.push({ e: e, gcdWithLambda: g, accepted: accepted, reason: null });
+    if (accepted) return { e: e, candidates: candidates };
+  }
+
+  let e = 3n;
+  while (e < lam) {
+    if (!PREFERRED_E_CANDIDATES.includes(e)) {
+      const g = gcd(e, lam);
+      const accepted = g === 1n;
+      candidates.push({ e: e, gcdWithLambda: g, accepted: accepted, reason: null });
+      if (accepted) return { e: e, candidates: candidates };
+    }
+    e += 2n;
+  }
+  throw new Error("no valid public exponent e found for lambda(n) = " + lam);
+}
+
+// Validates a caller-supplied e against 1 < e < lambda and gcd(e, lambda) == 1.
+// Counterpart: rsa.keygen._validate_e
+function validateE(e, lam) {
+  if (!(e > 1n && e < lam)) {
+    throw new Error("e must satisfy 1 < e < lambda(n) (" + lam + "), got " + e);
+  }
+  const g = gcd(e, lam);
+  if (g !== 1n) {
+    throw new Error("e = " + e + " is not coprime with lambda(n) = " + lam + " (gcd = " + g + ")");
+  }
+}
+
+// Builds the full key-generation trace: n, phi, lambda, e (auto or given),
+// the extended-Euclid table for d, and d itself.
+// Counterpart: rsa.keygen.generate_keypair
+function generateKeys(p, q, customE) {
+  if (p === q) throw new Error("p and q must be different primes");
+
+  const n = p * q;
+  const phi = totient(p, q);
+  const lam = carmichaelLambda(p, q);
+
+  let e, eCandidates;
+  if (customE === undefined || customE === null) {
+    const chosen = chooseE(lam);
+    e = chosen.e;
+    eCandidates = chosen.candidates;
+  } else {
+    validateE(customE, lam);
+    e = customE;
+    eCandidates = [{ e: e, gcdWithLambda: gcd(e, lam), accepted: true, reason: "chosen by user" }];
+  }
+
+  const egcdTable = egcdSteps(e, lam);
+  const d = modInv(e, lam);
+
+  return { p, q, n, phi, lam, e, eCandidates, egcdTable, d };
+}
+
+/* ==========================================================================
+   CIPHER  (mirrors rsa/cipher.py)
+   ========================================================================== */
+
+// Largest k (bytes per block) such that 256^k <= n. Same rule as Python's
+// _block_byte_width, so blocks line up exactly with the Python output.
+function blockByteWidth(n) {
+  if (n < 256n) throw new Error("n = " + n + " is too small to encode even one byte as a block (need n >= 256)");
+  let k = 1n;
+  while (256n ** (k + 1n) <= n) k += 1n;
+  return k;
+}
+
+// Splits UTF-8 text into integer blocks, each guaranteed < n.
+// Counterpart: rsa.cipher.text_to_blocks
+function textToBlocks(text, n) {
+  const k = Number(blockByteWidth(n));
+  const bytes = new TextEncoder().encode(text); // UTF-8 bytes, like Python's s.encode("utf-8")
+  const padLen = (k - (bytes.length % k)) % k;
+  const padded = new Uint8Array(bytes.length + padLen); // extra bytes are already 0
+  padded.set(bytes);
+
+  const blocks = [];
+  for (let i = 0; i < padded.length; i += k) {
+    let value = 0n;
+    for (let j = 0; j < k; j++) {
+      value = (value << 8n) | BigInt(padded[i + j]);
+    }
+    blocks.push(value);
+  }
+  return blocks;
+}
+
+// Inverse of textToBlocks: turns integer blocks back into UTF-8 text,
+// trimming the zero-byte padding added on encoding.
+// Counterpart: rsa.cipher.blocks_to_text
+function blocksToText(blocks, n) {
+  const k = Number(blockByteWidth(n));
+  const bytes = [];
+  for (const block of blocks) {
+    const blockBytes = new Uint8Array(k);
+    let value = block;
+    for (let j = k - 1; j >= 0; j--) {
+      blockBytes[j] = Number(value & 0xffn);
+      value >>= 8n;
+    }
+    for (const b of blockBytes) bytes.push(b);
+  }
+  while (bytes.length > 0 && bytes[bytes.length - 1] === 0) bytes.pop();
+  return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+}
+
+// RSA encryption: c = m^e mod n. Also returns the square-and-multiply trace.
+// Counterpart: rsa.cipher.encrypt (+ mod_exp_steps for the trace)
+function encryptValue(m, e, n) {
+  if (!(m >= 0n && m < n)) throw new Error("m must satisfy 0 <= m < n (" + n + "), got " + m);
+  const steps = modExpSteps(m, e, n);
+  return { c: steps.rows.length ? steps.rows[steps.rows.length - 1].result : (m % n), steps: steps };
+}
+
+// RSA decryption: m = c^d mod n. Also returns the square-and-multiply trace.
+// Counterpart: rsa.cipher.decrypt (+ mod_exp_steps for the trace)
+function decryptValue(c, d, n) {
+  if (!(c >= 0n && c < n)) throw new Error("c must satisfy 0 <= c < n (" + n + "), got " + c);
+  const steps = modExpSteps(c, d, n);
+  return { m: steps.rows.length ? steps.rows[steps.rows.length - 1].result : (c % n), steps: steps };
+}
+
+/* ==========================================================================
+   ATTACK  (mirrors rsa/attack.py)
+   ========================================================================== */
+
+// Factors n by trial division. n is converted to an ordinary Number first
+// (safe: the lab caps p and q so n never gets close to 2^53), because
+// plain-number division is noticeably faster than BigInt division in a
+// tight loop, and factoring is not "modular arithmetic" -- it's just
+// repeated integer division, so this is not the BigInt-required part.
+// Counterpart: rsa.attack.factor_n
+function factorN(nBig) {
+  const n = Number(nBig);
+  if (n < 4) throw new Error("n = " + n + " is too small to be a product of two primes >= 2");
+
+  const start = performance.now();
+  let attempts = 0;
+  let candidate = 2;
+  while (candidate * candidate <= n) {
+    attempts += 1;
+    if (n % candidate === 0) {
+      const elapsedMs = performance.now() - start;
+      return { p: BigInt(candidate), q: BigInt(n / candidate), attempts: attempts, elapsedMs: elapsedMs };
+    }
+    candidate = candidate === 2 ? 3 : candidate + 2;
+  }
+  throw new Error("could not factor n = " + n + " (it may be prime)");
+}
+
+// Rebuilds d from the recovered factors and the public e.
+// Counterpart: rsa.attack.recover_d
+function recoverD(p, q, e) {
+  const lam = carmichaelLambda(p, q);
+  return modInv(e, lam);
+}
+
+/* ==========================================================================
+   UI STATE
+   ========================================================================== */
+
+const state = {
+  sieveLimit: 200,
+  sievePrimes: [],       // array of ordinary numbers
+  eliminatedBy: new Map(),
+  selectedP: null,       // BigInt or null
+  selectedQ: null,       // BigInt or null
+
+  keys: null,            // result of generateKeys(), once available
+  keygenStep: 0,          // 0..5, which card panel 2 is showing
+
+  lastEncrypt: null,     // { mode, blocks, cipherBlocks, encryptSteps }
+};
+
+/* ==========================================================================
+   PANEL NAVIGATION
+   ========================================================================== */
+
+function showPanel(panelId) {
+  document.querySelectorAll("section.panel").forEach((sec) => sec.classList.remove("active"));
+  document.querySelectorAll("nav.stepper button").forEach((btn) => btn.classList.remove("active"));
+  $(panelId).classList.add("active");
+  document.querySelector('nav.stepper button[data-panel="' + panelId + '"]').classList.add("active");
+
+  if (panelId === "panel-keygen") renderKeygenPanel();
+  if (panelId === "panel-cipher") renderCipherPanel();
+  if (panelId === "panel-attack") renderAttackPanel();
+}
+
+document.querySelectorAll("nav.stepper button").forEach((btn) => {
+  btn.addEventListener("click", () => showPanel(btn.dataset.panel));
+});
+
+/* ==========================================================================
+   PANEL 1: PRIME SELECTION
+   ========================================================================== */
+
+function rebuildSieve() {
+  let limit = parseInt($("sieveLimitInput").value, 10);
+  if (isNaN(limit) || limit < 2 || limit > 2000) {
+    showMessage($("primesMsg"), "Sieve limit must be a whole number between 2 and 2000.", "error");
+    return;
+  }
+  state.sieveLimit = limit;
+  const result = sieveOfEratosthenes(limit);
+  state.sievePrimes = result.primes;
+  state.eliminatedBy = result.eliminatedBy;
+  state.selectedP = null;
+  state.selectedQ = null;
+  showMessage($("primesMsg"), "", "info");
+  renderSieveGrid();
+  renderSelection();
+}
+
+function renderSieveGrid() {
+  const grid = $("sieveGrid");
+  grid.innerHTML = "";
+  const primeSet = new Set(state.sievePrimes);
+
+  for (let n = 2; n <= state.sieveLimit; n++) {
+    const isPrime = primeSet.has(n);
+    const cell = el("div", { class: "cell " + (isPrime ? "prime" : "composite") });
+
+    if (BigInt(n) === state.selectedP) cell.classList.add("selected-p");
+    if (BigInt(n) === state.selectedQ) cell.classList.add("selected-q");
+
+    cell.appendChild(document.createTextNode(String(n)));
+    if (!isPrime) {
+      const factor = state.eliminatedBy.get(n);
+      cell.appendChild(el("span", { class: "elim", text: "×" + factor }));
+    } else {
+      cell.addEventListener("click", () => selectPrime(BigInt(n)));
+    }
+    grid.appendChild(cell);
+  }
+}
+
+function selectPrime(value) {
+  if (state.selectedP === null) {
+    state.selectedP = value;
+  } else if (state.selectedQ === null) {
+    if (value === state.selectedP) {
+      showMessage($("primesMsg"), "p and q must be different primes — choose another one for q.", "error");
+      return;
+    }
+    state.selectedQ = value;
+  } else {
+    // Both were already chosen: clicking again starts a fresh pair.
+    state.selectedP = value;
+    state.selectedQ = null;
+  }
+  showMessage($("primesMsg"), "", "info");
+  invalidateDownstream();
+  renderSieveGrid();
+  renderSelection();
+}
+
+function randomPair() {
+  if (state.sievePrimes.length < 2) {
+    showMessage($("primesMsg"), "Need at least two primes in range — raise the sieve limit.", "error");
+    return;
+  }
+  const primes = state.sievePrimes;
+  const i = Math.floor(Math.random() * primes.length);
+  let j = Math.floor(Math.random() * primes.length);
+  while (j === i) j = Math.floor(Math.random() * primes.length);
+  state.selectedP = BigInt(primes[i]);
+  state.selectedQ = BigInt(primes[j]);
+  showMessage($("primesMsg"), "", "info");
+  invalidateDownstream();
+  renderSieveGrid();
+  renderSelection();
+}
+
+function resetSelection() {
+  state.selectedP = null;
+  state.selectedQ = null;
+  showMessage($("primesMsg"), "", "info");
+  invalidateDownstream();
+  renderSieveGrid();
+  renderSelection();
+}
+
+function invalidateDownstream() {
+  if (state.keys !== null) {
+    showMessage($("primesMsg"), "Primes changed — key generation, encryption and the attack panel have been reset.", "info");
+  }
+  state.keys = null;
+  state.keygenStep = 0;
+  state.lastEncrypt = null;
+}
+
+function renderSelection() {
+  $("chosenP").textContent = state.selectedP === null ? "not chosen" : state.selectedP.toString();
+  $("chosenQ").textContent = state.selectedQ === null ? "not chosen" : state.selectedQ.toString();
+  $("toKeygenBtn").disabled = !(state.selectedP !== null && state.selectedQ !== null);
+}
+
+$("rebuildSieveBtn").addEventListener("click", rebuildSieve);
+$("randomPairBtn").addEventListener("click", randomPair);
+$("resetSelectionBtn").addEventListener("click", resetSelection);
+$("toKeygenBtn").addEventListener("click", () => showPanel("panel-keygen"));
+
+/* ==========================================================================
+   PANEL 2: KEY GENERATION WALKTHROUGH
+   ========================================================================== */
+
+const KEYGEN_CARD_COUNT = 6;
+
+function renderKeygenPanel() {
+  if (state.selectedP === null || state.selectedQ === null) {
+    $("keygenContent").style.display = "none";
+    showMessage($("keygenPrereqMsg"),
+      "Choose two primes in \"1. Prime Selection\" first.", "error");
+    return;
+  }
+  showMessage($("keygenPrereqMsg"), "", "info");
+  $("keygenContent").style.display = "block";
+
+  if (state.keys === null) {
+    state.keys = generateKeys(state.selectedP, state.selectedQ, undefined);
+    state.keygenStep = 0;
+  }
+  renderKeygenCard();
+}
+
+function renderKeygenDots() {
+  const dots = $("keygenDots");
+  dots.innerHTML = "";
+  for (let i = 0; i < KEYGEN_CARD_COUNT; i++) {
+    dots.appendChild(el("span", { class: i <= state.keygenStep ? "done" : "" }));
+  }
+}
+
+function renderKeygenCard() {
+  renderKeygenDots();
+  const card = $("keygenCard");
+  card.innerHTML = "";
+  const keys = state.keys;
+
+  $("keygenPrevBtn").disabled = state.keygenStep === 0;
+  $("keygenNextBtn").style.display = state.keygenStep === KEYGEN_CARD_COUNT - 1 ? "none" : "inline-block";
+  $("toCipherBtn").style.display = state.keygenStep === KEYGEN_CARD_COUNT - 1 ? "inline-block" : "none";
+
+  if (state.keygenStep === 0) {
+    card.appendChild(el("h3", { text: "Step 1: n — the modulus" }));
+    card.appendChild(el("div", { class: "quantity",
+      html: '<span class="sym">n</span> (modulus) = p × q = ' +
+            keys.p + ' × ' + keys.q + ' = <span class="val num">' + keys.n + '</span>' }));
+    card.appendChild(el("p", { text: "n is published as part of the public key. Both the message and the ciphertext are numbers modulo n." }));
+
+  } else if (state.keygenStep === 1) {
+    card.appendChild(el("h3", { text: "Step 2: φ(n) — Euler's totient" }));
+    card.appendChild(el("div", { class: "quantity",
+      html: '<span class="sym">φ(n)</span> (Euler\'s totient, plain English: count of numbers below n that share no factor with n) = (p−1)(q−1) = (' +
+            (keys.p - 1n) + ')(' + (keys.q - 1n) + ') = <span class="val num">' + keys.phi + '</span>' }));
+
+  } else if (state.keygenStep === 2) {
+    card.appendChild(el("h3", { text: "Step 3: λ(n) — Carmichael's function" }));
+    card.appendChild(el("div", { class: "quantity",
+      html: '<span class="sym">λ(n)</span> (Carmichael function, plain English: the smallest exponent that sends every message back to itself) = lcm(p−1, q−1) = lcm(' +
+            (keys.p - 1n) + ', ' + (keys.q - 1n) + ') = <span class="val num">' + keys.lam + '</span>' }));
+    card.appendChild(el("p", { text: "λ(n) divides φ(n) and is used here instead of φ(n) to compute d — see the report for why textbooks usually teach φ(n)." }));
+
+  } else if (state.keygenStep === 3) {
+    card.appendChild(el("h3", { text: "Step 4: choosing e — the public exponent" }));
+    card.appendChild(el("p", { text: "e must satisfy 1 < e < λ(n) and gcd(e, λ(n)) = 1. Candidates are tried in this order:" }));
+    const table = el("table");
+    table.appendChild(el("tr", null, [
+      el("th", { text: "e" }), el("th", { text: "gcd(e, λ(n))" }), el("th", { text: "accepted?" })
+    ]));
+    for (const cand of keys.eCandidates) {
+      const row = el("tr", { class: cand.accepted ? "highlight" : "rejected" });
+      row.appendChild(el("td", { class: "num", text: cand.e.toString() }));
+      row.appendChild(el("td", { class: "num", text: cand.gcdWithLambda === null ? "—" : cand.gcdWithLambda.toString() }));
+      row.appendChild(el("td", { text: cand.accepted ? "yes ✓" : (cand.reason || "no") }));
+      table.appendChild(row);
+    }
+    card.appendChild(table);
+    card.appendChild(el("div", { class: "quantity",
+      html: 'Chosen <span class="sym">e</span> (public exponent) = <span class="val num">' + keys.e + '</span>' }));
+
+  } else if (state.keygenStep === 4) {
+    card.appendChild(el("h3", { text: "Step 5: extended Euclidean algorithm for d" }));
+    card.appendChild(el("p", { text: "d is the modular inverse of e mod λ(n): the extended Euclidean algorithm on (e, λ(n)) finds it row by row." }));
+    const table = el("table");
+    table.appendChild(el("tr", null, [
+      el("th", { text: "i" }), el("th", { text: "r (remainder)" }),
+      el("th", { text: "q (quotient)" }), el("th", { text: "s" }), el("th", { text: "t" })
+    ]));
+    for (const row of keys.egcdTable) {
+      const tr = el("tr", row.r === 1n || (row.r === keys.lam && keys.lam===1n) ? { class: "" } : null);
+      tr.appendChild(el("td", { class: "num", text: row.i.toString() }));
+      tr.appendChild(el("td", { class: "num", text: row.r.toString() }));
+      tr.appendChild(el("td", { class: "num", text: row.q === null ? "—" : row.q.toString() }));
+      tr.appendChild(el("td", { class: "num", text: row.s.toString() }));
+      tr.appendChild(el("td", { class: "num", text: row.t.toString() }));
+      table.appendChild(tr);
+    }
+    card.appendChild(table);
+    card.appendChild(el("div", { class: "quantity",
+      html: '<span class="sym">d</span> (private exponent) = e⁻¹ mod λ(n) = <span class="val num">' + keys.d + '</span>' }));
+
+  } else if (state.keygenStep === 5) {
+    card.appendChild(el("h3", { text: "Step 6: the finished key pair" }));
+    card.appendChild(el("div", { class: "quantity",
+      html: 'Public key (share this): (<span class="sym">e</span> = <span class="val num">' + keys.e +
+            '</span>, <span class="sym">n</span> = <span class="val num">' + keys.n + '</span>)' }));
+    card.appendChild(el("div", { class: "quantity",
+      html: 'Private key (keep secret): (<span class="sym">d</span> = <span class="val num">' + keys.d +
+            '</span>, <span class="sym">n</span> = <span class="val num">' + keys.n + '</span>)' }));
+  }
+}
+
+$("keygenPrevBtn").addEventListener("click", () => {
+  if (state.keygenStep > 0) { state.keygenStep -= 1; renderKeygenCard(); }
+});
+$("keygenNextBtn").addEventListener("click", () => {
+  if (state.keygenStep < KEYGEN_CARD_COUNT - 1) { state.keygenStep += 1; renderKeygenCard(); }
+});
+$("toCipherBtn").addEventListener("click", () => showPanel("panel-cipher"));
+
+/* ==========================================================================
+   PANEL 3: ENCRYPT / DECRYPT
+   ========================================================================== */
+
+function renderCipherPanel() {
+  if (state.keys === null) {
+    $("cipherContent").style.display = "none";
+    showMessage($("cipherPrereqMsg"), "Generate a key pair in \"2. Key Generation\" first.", "error");
+    return;
+  }
+  showMessage($("cipherPrereqMsg"), "", "info");
+  $("cipherContent").style.display = "block";
+  $("pubE").textContent = state.keys.e.toString();
+  $("pubN").textContent = state.keys.n.toString();
+  $("privD").textContent = state.keys.d.toString();
+  $("privN").textContent = state.keys.n.toString();
+}
+
+document.querySelectorAll('input[name="msgMode"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const isText = document.querySelector('input[name="msgMode"]:checked').value === "text";
+    $("msgInputLabel").textContent = isText ? "text message:" : "m (message):";
+    $("msgInput").value = isText ? "HI" : "65";
+  });
+});
+
+function renderModExpTable(container, title, steps) {
+  container.appendChild(el("h4", { text: title }));
+  container.appendChild(el("p", { class: "label",
+    text: "base mod n = " + steps.baseMod + ", exponent in binary = " + steps.bits }));
+  const table = el("table");
+  table.appendChild(el("tr", null, [
+    el("th", { text: "bit #" }), el("th", { text: "bit" }), el("th", { text: "before" }),
+    el("th", { text: "after square" }), el("th", { text: "multiply?" }), el("th", { text: "result" })
+  ]));
+  for (const row of steps.rows) {
+    const tr = el("tr");
+    tr.appendChild(el("td", { class: "num", text: String(row.bitIndex) }));
+    tr.appendChild(el("td", { class: "num", text: row.bit }));
+    tr.appendChild(el("td", { class: "num", text: row.resultBefore.toString() }));
+    tr.appendChild(el("td", { class: "num", text: row.resultAfterSquare.toString() }));
+    tr.appendChild(el("td", { text: row.multiplied ? "yes ×base" : "no" }));
+    tr.appendChild(el("td", { class: "num", text: row.result.toString() }));
+    table.appendChild(tr);
+  }
+  container.appendChild(table);
+}
+
+$("encryptBtn").addEventListener("click", () => {
+  const mode = document.querySelector('input[name="msgMode"]:checked').value;
+  const keys = state.keys;
+  const resultDiv = $("encryptResult");
+  resultDiv.innerHTML = "";
+
+  try {
+    if (mode === "int") {
+      const raw = $("msgInput").value.trim();
+      if (!/^\d+$/.test(raw)) throw new Error("message must be a non-negative whole number");
+      const m = BigInt(raw);
+      const { c, steps } = encryptValue(m, keys.e, keys.n);
+      showMessage($("encryptMsg"), "", "info");
+      resultDiv.appendChild(el("div", { class: "quantity",
+        html: '<span class="sym">c</span> (ciphertext) = <span class="val num">' + c + '</span>' }));
+      renderModExpTable(resultDiv, "m^e mod n, step by step", steps);
+      state.lastEncrypt = { mode: "int", plain: m, cipher: c };
+      $("cipherInput").value = c.toString();
+    } else {
+      const text = $("msgInput").value;
+      if (text.length === 0) throw new Error("enter some text first");
+      if (text.length > 200) throw new Error("keep text messages under 200 characters for this demo");
+      const blocks = textToBlocks(text, keys.n);
+      const cipherBlocks = [];
+      const blockDetails = [];
+      for (const block of blocks) {
+        const { c, steps } = encryptValue(block, keys.e, keys.n);
+        cipherBlocks.push(c);
+        blockDetails.push({ block, c, steps });
+      }
+      showMessage($("encryptMsg"), "", "info");
+      resultDiv.appendChild(el("div", { class: "quantity",
+        html: "text split into " + blocks.length + " block(s): <span class='num'>" + blocks.join(", ") + "</span>" }));
+      resultDiv.appendChild(el("div", { class: "quantity",
+        html: "cipher blocks: <span class='num'>" + cipherBlocks.join(", ") + "</span>" }));
+
+      blockDetails.forEach((bd, idx) => {
+        const details = el("details");
+        details.appendChild(el("summary", { text: "Block " + idx + ": m=" + bd.block + " → c=" + bd.c }));
+        const inner = el("div");
+        renderModExpTable(inner, "m^e mod n, step by step", bd.steps);
+        details.appendChild(inner);
+        if (idx === 0) details.setAttribute("open", "");
+        resultDiv.appendChild(details);
+      });
+
+      state.lastEncrypt = { mode: "text", text, blocks, cipherBlocks };
+      $("cipherInput").value = cipherBlocks.join(",");
+    }
+  } catch (err) {
+    showMessage($("encryptMsg"), "Error: " + err.message, "error");
+  }
+});
+
+$("decryptBtn").addEventListener("click", () => {
+  const keys = state.keys;
+  const resultDiv = $("decryptResult");
+  resultDiv.innerHTML = "";
+  try {
+    const raw = $("cipherInput").value.trim();
+    if (raw.length === 0) throw new Error("enter one or more ciphertext blocks first");
+    const parts = raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    if (!parts.every((p) => /^\d+$/.test(p))) throw new Error("ciphertext blocks must be whole numbers");
+    const cipherBlocks = parts.map((p) => BigInt(p));
+
+    const plainBlocks = [];
+    const blockDetails = [];
+    for (const c of cipherBlocks) {
+      const { m, steps } = decryptValue(c, keys.d, keys.n);
+      plainBlocks.push(m);
+      blockDetails.push({ c, m, steps });
+    }
+    showMessage($("decryptMsg"), "", "info");
+
+    if (cipherBlocks.length === 1) {
+      resultDiv.appendChild(el("div", { class: "quantity",
+        html: '<span class="sym">m</span> (recovered message) = <span class="val num">' + plainBlocks[0] + '</span>' }));
+    } else {
+      resultDiv.appendChild(el("div", { class: "quantity",
+        html: "recovered blocks: <span class='num'>" + plainBlocks.join(", ") + "</span>" }));
+      try {
+        const text = blocksToText(plainBlocks, keys.n);
+        resultDiv.appendChild(el("div", { class: "quantity",
+          html: "recovered text: <span class='val'>" + escapeHtml(text) + "</span>" }));
+      } catch (e) {
+        resultDiv.appendChild(el("div", { class: "msg info", text: "(blocks don't decode as UTF-8 text; showing raw numbers only)" }));
+      }
+    }
+
+    blockDetails.forEach((bd, idx) => {
+      const details = el("details");
+      details.appendChild(el("summary", { text: "Block " + idx + ": c=" + bd.c + " → m=" + bd.m }));
+      const inner = el("div");
+      renderModExpTable(inner, "c^d mod n, step by step", bd.steps);
+      details.appendChild(inner);
+      resultDiv.appendChild(details);
+    });
+
+    if (state.lastEncrypt) {
+      const originalMatches =
+        (state.lastEncrypt.mode === "int" && plainBlocks.length === 1 && plainBlocks[0] === state.lastEncrypt.plain) ||
+        (state.lastEncrypt.mode === "text" && JSON.stringify(plainBlocks.map(String)) === JSON.stringify(state.lastEncrypt.blocks.map(String)));
+      if (originalMatches) {
+        resultDiv.appendChild(el("div", { class: "msg success", text: "✅ Matches the original message encrypted above." }));
+      }
+    }
+  } catch (err) {
+    showMessage($("decryptMsg"), "Error: " + err.message, "error");
+  }
+});
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ==========================================================================
+   PANEL 4: ATTACK
+   ========================================================================== */
+
+function renderAttackPanel() {
+  if (state.keys === null) {
+    $("attackContent").style.display = "none";
+    showMessage($("attackPrereqMsg"), "Generate a key pair in \"2. Key Generation\" first.", "error");
+    return;
+  }
+  showMessage($("attackPrereqMsg"), "", "info");
+  $("attackContent").style.display = "block";
+  $("atkE").textContent = state.keys.e.toString();
+  $("atkN").textContent = state.keys.n.toString();
+}
+
+$("breakKeyBtn").addEventListener("click", () => {
+  const keys = state.keys;
+  const resultDiv = $("attackResult");
+  resultDiv.innerHTML = "";
+  try {
+    const { p, q, attempts, elapsedMs } = factorN(keys.n);
+    const recoveredD = recoverD(p, q, keys.e);
+
+    resultDiv.appendChild(el("div", { class: "card" }, [
+      el("div", { class: "quantity", html: "factored <span class='num'>" + keys.n + "</span> = " +
+        "<span class='num'>" + p + "</span> × <span class='num'>" + q + "</span>" }),
+      el("div", { class: "quantity", text: "attempts: " + attempts + ", elapsed: " + elapsedMs.toFixed(3) + " ms" }),
+      el("div", { class: "quantity", html: "recovered <span class='sym'>d</span> = <span class='val num'>" + recoveredD + "</span>" +
+        (recoveredD === keys.d ? " (matches the real private key)" : "") }),
+    ]));
+
+    if (state.lastEncrypt && state.lastEncrypt.mode === "int") {
+      const { m } = decryptValue(state.lastEncrypt.cipher, recoveredD, keys.n);
+      resultDiv.appendChild(el("div", { class: "msg success",
+        text: "Decrypted c=" + state.lastEncrypt.cipher + " → m=" + m +
+              " using ONLY the recovered key — the real private key was never touched." }));
+    } else {
+      resultDiv.appendChild(el("div", { class: "msg info",
+        text: "Encrypt an integer message in panel 3 first to see it decrypted here without the private key." }));
+    }
+  } catch (err) {
+    resultDiv.appendChild(el("div", { class: "msg error", text: "Error: " + err.message }));
+  }
+});
+
+$("benchmarkBtn").addEventListener("click", () => {
+  const resultDiv = $("benchmarkResult");
+  resultDiv.innerHTML = "";
+  // Small, fixed set of prime bit lengths -- capped so a click always
+  // finishes instantly in a browser tab (unlike the Python trial-division
+  // benchmark in the report, which is run offline and can afford more).
+  const bitLengths = [8, 10, 12, 14, 16, 18, 20];
+  const rows = [];
+  for (const bits of bitLengths) {
+    const low = 2 ** (bits - 1);
+    const high = 2 ** bits - 1;
+    const p = randomPrimeInRange(low, high);
+    let q = randomPrimeInRange(low, high);
+    while (q === p) q = randomPrimeInRange(low, high);
+    const n = BigInt(p) * BigInt(q);
+    const { attempts, elapsedMs } = factorN(n);
+    rows.push({ bits, n, attempts, elapsedMs });
+  }
+
+  const table = el("table");
+  table.appendChild(el("tr", null, [
+    el("th", { text: "prime bit length (each)" }), el("th", { text: "n" }),
+    el("th", { text: "attempts" }), el("th", { text: "time (ms)" })
+  ]));
+  for (const r of rows) {
+    const tr = el("tr");
+    tr.appendChild(el("td", { class: "num", text: String(r.bits) }));
+    tr.appendChild(el("td", { class: "num", text: r.n.toString() }));
+    tr.appendChild(el("td", { class: "num", text: String(r.attempts) }));
+    tr.appendChild(el("td", { class: "num", text: r.elapsedMs.toFixed(3) }));
+    table.appendChild(tr);
+  }
+  resultDiv.appendChild(table);
+  resultDiv.appendChild(el("p", { class: "label",
+    text: "Real RSA uses primes around 1024 bits each (a 2048-bit modulus) — " +
+          "trillions of times larger than the biggest row above, which is exactly " +
+          "why trial division on a real key is not a practical attack." }));
+});
+
+// Finds a random prime in [low, high] by trial-and-check (small ranges only
+// -- this lab's own stand-in for rsa.primes.random_prime, used only by the
+// benchmark button above).
+function randomPrimeInRange(low, high) {
+  for (let attempt = 0; attempt < 10000; attempt++) {
+    const candidate = low + Math.floor(Math.random() * (high - low + 1));
+    if (isPrimeMillerRabin(BigInt(candidate))) return candidate;
+  }
+  for (let candidate = low; candidate <= high; candidate++) {
+    if (isPrimeMillerRabin(BigInt(candidate))) return candidate;
+  }
+  throw new Error("no prime found in [" + low + ", " + high + "]");
+}
+
+/* ==========================================================================
+   PANEL 5: SELF-TEST
+   ========================================================================== */
+
+function runSelfTest() {
+  const resultDiv = $("selfTestResult");
+  resultDiv.innerHTML = "";
+  const results = [];
+
+  function check(name, actual, expected) {
+    const actualStr = actual.toString();
+    const expectedStr = expected.toString();
+    results.push({ name, pass: actualStr === expectedStr, actual: actualStr, expected: expectedStr });
+  }
+
+  // --- Known-answer vector, identical to tests/test_keygen.py and
+  //     tests/test_cipher.py: p=61, q=53, e=17. ---
+  const kp = generateKeys(61n, 53n, 17n);
+  check("n = p*q", kp.n, 3233n);
+  check("phi(n)", kp.phi, 3120n);
+  check("lambda(n)", kp.lam, 780n);
+  check("d = e^-1 mod lambda(n)", kp.d, 413n);
+
+  const enc = encryptValue(65n, kp.e, kp.n);
+  check("encrypt(65)", enc.c, 2790n);
+  const dec = decryptValue(2790n, kp.d, kp.n);
+  check("decrypt(2790)", dec.m, 65n);
+
+  // --- factor_n / recover_d on the same key ---
+  const { p: recP, q: recQ } = factorN(kp.n);
+  const recD = recoverD(recP, recQ, kp.e);
+  check("attack recovers d", recD, 413n);
+
+  // --- text block round trip ---
+  const blocks = textToBlocks("HI!", kp.n);
+  const backToText = blocksToText(blocks, kp.n);
+  check("text_to_blocks/blocks_to_text round trip", backToText, "HI!");
+
+  // --- a handful of random small keys, full round trip ---
+  let randomPassed = 0, randomTotal = 0;
+  const smallPrimes = sieveOfEratosthenes(500).primes.filter((p) => p >= 11);
+  for (let trial = 0; trial < 8; trial++) {
+    const pi = Math.floor(Math.random() * smallPrimes.length);
+    let qi = Math.floor(Math.random() * smallPrimes.length);
+    while (qi === pi) qi = Math.floor(Math.random() * smallPrimes.length);
+    const p = BigInt(smallPrimes[pi]);
+    const q = BigInt(smallPrimes[qi]);
+    try {
+      const rk = generateKeys(p, q, undefined);
+      const m = BigInt(Math.floor(Math.random() * Number(rk.n)));
+      const c = encryptValue(m, rk.e, rk.n).c;
+      const back = decryptValue(c, rk.d, rk.n).m;
+      randomTotal += 1;
+      if (back === m) randomPassed += 1;
+    } catch (e) {
+      // Extremely small (p, q) can occasionally leave no e < lambda; skip.
+    }
+  }
+  results.push({
+    name: "random small-key round trips (" + randomPassed + "/" + randomTotal + ")",
+    pass: randomTotal > 0 && randomPassed === randomTotal,
+    actual: randomPassed + "/" + randomTotal,
+    expected: randomTotal + "/" + randomTotal,
+  });
+
+  const allPassed = results.every((r) => r.pass);
+  resultDiv.appendChild(el("div", { class: "msg " + (allPassed ? "success" : "error"),
+    text: allPassed ? "✅ All self-tests passed — this page's JavaScript agrees with the Python implementation." :
+                       "❌ Some self-tests failed — see the table below." }));
+
+  const table = el("table");
+  table.appendChild(el("tr", null, [
+    el("th", { text: "check" }), el("th", { text: "result" }), el("th", { text: "expected" }), el("th", { text: "" })
+  ]));
+  for (const r of results) {
+    const tr = el("tr");
+    tr.appendChild(el("td", { text: r.name }));
+    tr.appendChild(el("td", { class: "num", text: r.actual }));
+    tr.appendChild(el("td", { class: "num", text: r.expected }));
+    tr.appendChild(el("td", { text: r.pass ? "✅" : "❌" }));
+    table.appendChild(tr);
+  }
+  resultDiv.appendChild(table);
+}
+
+$("runSelfTestBtn").addEventListener("click", runSelfTest);
+
+/* ==========================================================================
+   INITIALISE
+   ========================================================================== */
+
+rebuildSieve();
+</script>
+</body>
+</html>
