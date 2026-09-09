@@ -1,0 +1,208 @@
+{
+  "test_summary": {
+    "per_module": {
+      "test_attack": {
+        "ok": 6,
+        "FAIL": 0,
+        "ERROR": 0
+      },
+      "test_cipher": {
+        "ok": 14,
+        "FAIL": 0,
+        "ERROR": 0
+      },
+      "test_keygen": {
+        "ok": 19,
+        "FAIL": 0,
+        "ERROR": 0
+      },
+      "test_mathutils": {
+        "ok": 23,
+        "FAIL": 0,
+        "ERROR": 0
+      },
+      "test_primes": {
+        "ok": 15,
+        "FAIL": 0,
+        "ERROR": 0
+      }
+    },
+    "summary_line": "Ran 77 tests in 0.107s",
+    "final_status": "OK"
+  },
+  "sample_keypairs": [
+    {
+      "prime_range": "[100, 999]",
+      "p": 421,
+      "q": 863,
+      "n": 363323,
+      "phi": 362040,
+      "lam": 181020,
+      "e": 65537,
+      "d": 53513
+    },
+    {
+      "prime_range": "[1000, 9999]",
+      "p": 6577,
+      "q": 7043,
+      "n": 46321811,
+      "phi": 46308192,
+      "lam": 23154096,
+      "e": 65537,
+      "d": 16543889
+    },
+    {
+      "prime_range": "[10000, 99999]",
+      "p": 86771,
+      "q": 76369,
+      "n": 6626614499,
+      "phi": 6626451360,
+      "lam": 3313225680,
+      "e": 65537,
+      "d": 1650975953
+    }
+  ],
+  "keygen_time_vs_bitlength": [
+    {
+      "prime_bits": 8,
+      "trials": 15,
+      "mean_ms": 0.21640666666666677,
+      "min_ms": 0.11700000000000599,
+      "max_ms": 0.5187000000000108
+    },
+    {
+      "prime_bits": 12,
+      "trials": 15,
+      "mean_ms": 0.2101266666666666,
+      "min_ms": 0.16159999999999786,
+      "max_ms": 0.31940000000001134
+    },
+    {
+      "prime_bits": 16,
+      "trials": 15,
+      "mean_ms": 0.23870666666666596,
+      "min_ms": 0.18129999999999535,
+      "max_ms": 0.31839999999999646
+    },
+    {
+      "prime_bits": 20,
+      "trials": 15,
+      "mean_ms": 0.32672000000000256,
+      "min_ms": 0.23669999999999247,
+      "max_ms": 0.6495000000000112
+    },
+    {
+      "prime_bits": 24,
+      "trials": 15,
+      "mean_ms": 0.3289333333333311,
+      "min_ms": 0.26740000000000097,
+      "max_ms": 0.4588999999999982
+    },
+    {
+      "prime_bits": 28,
+      "trials": 15,
+      "mean_ms": 0.36871333333333517,
+      "min_ms": 0.31490000000000684,
+      "max_ms": 0.4740999999999912
+    },
+    {
+      "prime_bits": 32,
+      "trials": 15,
+      "mean_ms": 0.6787800000000019,
+      "min_ms": 0.5058000000000007,
+      "max_ms": 1.1381999999999919
+    }
+  ],
+  "factoring_time_vs_bitlength": [
+    {
+      "prime_bits": 8,
+      "n_bits": 15,
+      "n": 30967,
+      "attempts": 87,
+      "elapsed_ms": 0.006100000000008876
+    },
+    {
+      "prime_bits": 10,
+      "n_bits": 20,
+      "n": 778997,
+      "attempts": 385,
+      "elapsed_ms": 0.025999999999998247
+    },
+    {
+      "prime_bits": 12,
+      "n_bits": 24,
+      "n": 9714427,
+      "attempts": 1336,
+      "elapsed_ms": 0.09290000000000687
+    },
+    {
+      "prime_bits": 14,
+      "n_bits": 27,
+      "n": 109234787,
+      "attempts": 4776,
+      "elapsed_ms": 0.3288999999999931
+    },
+    {
+      "prime_bits": 16,
+      "n_bits": 31,
+      "n": 1489717261,
+      "attempts": 18066,
+      "elapsed_ms": 1.5899000000000052
+    },
+    {
+      "prime_bits": 18,
+      "n_bits": 35,
+      "n": 29366434777,
+      "attempts": 79927,
+      "elapsed_ms": 6.97239999999999
+    },
+    {
+      "prime_bits": 20,
+      "n_bits": 40,
+      "n": 667874851019,
+      "attempts": 372997,
+      "elapsed_ms": 36.534800000000004
+    },
+    {
+      "prime_bits": 22,
+      "n_bits": 44,
+      "n": 14811803940337,
+      "attempts": 1916934,
+      "elapsed_ms": 184.7694
+    },
+    {
+      "prime_bits": 24,
+      "n_bits": 48,
+      "n": 241650776912617,
+      "attempts": 7628034,
+      "elapsed_ms": 718.6528999999999
+    }
+  ],
+  "decrypt_plain_vs_crt": [
+    {
+      "prime_bits": 16,
+      "n_bits": 31,
+      "reps": 2000,
+      "plain_us": 6.238850000000018,
+      "crt_us": 6.119649999999921,
+      "speedup": 1.01947823813455
+    },
+    {
+      "prime_bits": 24,
+      "n_bits": 47,
+      "reps": 2000,
+      "plain_us": 8.994450000000098,
+      "crt_us": 8.060149999999933,
+      "speedup": 1.1159159568990866
+    },
+    {
+      "prime_bits": 32,
+      "n_bits": 64,
+      "reps": 2000,
+      "plain_us": 11.069099999999942,
+      "crt_us": 13.960199999999979,
+      "speedup": 0.7929041131215855
+    }
+  ],
+  "matplotlib_available": false
+}

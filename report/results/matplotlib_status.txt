@@ -1,0 +1,2 @@
+matplotlib available: False
+matplotlib is not installed on this machine; report/figures/ is intentionally empty and report.md presents this data as Markdown tables instead of plots, as instructed.
