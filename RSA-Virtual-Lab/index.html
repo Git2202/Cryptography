@@ -3,109 +3,132 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RSA Cryptography Virtual Laboratory</title>
+<title>RSA Virtual Laboratory — Alice &amp; Bob</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <header class="lab-header">
-    <h1>RSA Cryptography Virtual Laboratory</h1>
+    <h1>RSA Virtual Laboratory</h1>
     <p>
-      RSA is a public-key encryption method: it uses two prime numbers to
-      build a public key (for locking a message) and a private key (for
-      unlocking it), so anyone can send a secret message but only the key
-      owner can read it. Enter two primes and a message below to generate
-      a real key pair and watch every calculation happen step by step.
+      RSA Algorithm — Interactive Secure Communication between Alice and Bob.
+      Alice and Bob each generate their own RSA key pair from primes you
+      choose. Whenever one of them sends a message, it is scrambled with the
+      <strong>receiver's public key</strong> and can only be unscrambled with
+      the <strong>receiver's private key</strong> — so only the intended
+      reader can ever read it, even though the scrambling method itself is
+      public knowledge.
     </p>
   </header>
 
   <main>
 
     <!-- ============================================================
-         INPUT PANEL
+         SAMPLE EXPERIMENT (fixed reference, not editable)
          ============================================================ -->
-    <section class="input-panel">
-      <h2>Inputs</h2>
-
-      <div class="field-group">
-        <label for="inputP">Prime p</label>
-        <input type="text" id="inputP" inputmode="numeric" placeholder="e.g. 5">
-        <span class="field-error" id="errorP"></span>
+    <section class="card sample-panel">
+      <h2>Sample Experiment (fixed reference)</h2>
+      <p>This worked example never changes, however you fill in the form
+         below — it's here so you can check your own results against it.</p>
+      <div class="sample-grid">
+        <div>p = <b>5</b>, q = <b>11</b>, e = <b>3</b></div>
+        <div>n = 5 &times; 11 = <b>55</b></div>
+        <div>&phi;(n) = (5&minus;1)(11&minus;1) = <b>40</b></div>
+        <div>d = <b>27</b> (27 &times; 3 mod 40 = 1)</div>
+        <div>Public key PU = <b>(3, 55)</b></div>
+        <div>Private key PR = <b>(27, 55)</b></div>
+        <div class="sample-wide">M = 7 &rarr; C = 7&sup3; mod 55 = 343 mod 55 = <b>13</b></div>
+        <div class="sample-wide">Decrypt: 13&sup2;&#8311; mod 55 = <b>7</b> &#10003;</div>
       </div>
+      <button class="btn btn-secondary" id="loadSampleBtn">Load these values into the form</button>
+    </section>
 
-      <div class="field-group">
-        <label for="inputQ">Prime q</label>
-        <input type="text" id="inputQ" inputmode="numeric" placeholder="e.g. 11">
-        <span class="field-error" id="errorQ"></span>
-      </div>
+    <!-- ============================================================
+         CHARACTER MAPPING LEGEND
+         ============================================================ -->
+    <section class="card mapping-legend">
+      <h2>Character mapping</h2>
+      <p>Every letter is converted to a number before it can be encrypted:
+         <span class="mono">A = 0, B = 1, C = 2, &hellip; Z = 25</span>.
+         A space is left exactly as it is and passed straight through,
+         unencrypted — it never becomes a number. This letter-by-letter
+         mapping is a <strong>teaching visualisation</strong>, not how
+         production RSA encodes real messages.</p>
+    </section>
 
-      <div class="field-group">
-        <label for="inputM">Message M (a whole number)</label>
-        <input type="text" id="inputM" inputmode="numeric" placeholder="e.g. 2">
-        <span class="field-error" id="errorM"></span>
-      </div>
+    <!-- ============================================================
+         STEP 1: INPUT PANEL (always visible)
+         ============================================================ -->
+    <section class="card input-panel" id="step1Panel">
+      <h2><span class="step-badge">Step 1</span> Enter Parameters</h2>
+      <p>Alice and Bob each pick their own two primes and public exponent.
+         Nothing here is generated for you.</p>
 
-      <div class="field-group">
-        <label for="inputE">Public exponent e <span class="optional-tag">(optional — leave blank to auto-choose)</span></label>
-        <input type="text" id="inputE" inputmode="numeric" placeholder="auto">
-        <span class="field-error" id="errorE"></span>
+      <div class="people-grid">
+        <div class="person-fields alice-fields">
+          <h3><span class="avatar">&#128105;</span> Alice</h3>
+          <div class="field-group">
+            <label for="alice-p">Prime p</label>
+            <input type="text" id="alice-p" inputmode="numeric" placeholder="e.g. 5">
+            <span class="field-error" id="alice-p-error"></span>
+          </div>
+          <div class="field-group">
+            <label for="alice-q">Prime q</label>
+            <input type="text" id="alice-q" inputmode="numeric" placeholder="e.g. 11">
+            <span class="field-error" id="alice-q-error"></span>
+          </div>
+          <div class="field-group">
+            <label for="alice-e">Public exponent e</label>
+            <input type="text" id="alice-e" inputmode="numeric" placeholder="e.g. 3">
+            <span class="field-error" id="alice-e-error"></span>
+          </div>
+        </div>
+
+        <div class="person-fields bob-fields">
+          <h3><span class="avatar">&#129489;</span> Bob</h3>
+          <div class="field-group">
+            <label for="bob-p">Prime p</label>
+            <input type="text" id="bob-p" inputmode="numeric" placeholder="e.g. 7">
+            <span class="field-error" id="bob-p-error"></span>
+          </div>
+          <div class="field-group">
+            <label for="bob-q">Prime q</label>
+            <input type="text" id="bob-q" inputmode="numeric" placeholder="e.g. 11">
+            <span class="field-error" id="bob-q-error"></span>
+          </div>
+          <div class="field-group">
+            <label for="bob-e">Public exponent e</label>
+            <input type="text" id="bob-e" inputmode="numeric" placeholder="e.g. 7">
+            <span class="field-error" id="bob-e-error"></span>
+          </div>
+        </div>
       </div>
 
       <div class="button-row">
-        <button id="generateBtn" class="btn btn-primary">Generate RSA</button>
-        <button id="resetBtn" class="btn btn-secondary">Clear / Reset</button>
+        <button class="btn btn-primary" id="generateKeysBtn">Generate Keys &#9654;</button>
+        <button class="btn btn-secondary" id="resetBtn">Reset</button>
       </div>
+    </section>
 
-      <div class="progress-track" id="progressTrack" hidden>
+    <!-- ============================================================
+         PROGRESS BAR
+         ============================================================ -->
+    <section class="progress-panel">
+      <div class="progress-track">
         <div class="progress-fill" id="progressFill"></div>
       </div>
+      <div class="progress-label" id="progressLabel">Step 1 of 12 — Enter Parameters</div>
     </section>
 
     <!-- ============================================================
-         FLOW DIAGRAM 1: KEY GENERATION
+         STEPS 2-12 GO HERE, ADDED ONE AT A TIME BY script.js
          ============================================================ -->
-    <section class="flow-diagram">
-      <h2>Key Generation Flow</h2>
-      <div class="flow-row">
-        <div class="flow-box" id="kgBox1">p, q</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="kgBox2">n and &phi;(n)</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="kgBox3">choose e</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="kgBox4">calculate d</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="kgBox5">Public + Private Key</div>
-      </div>
-    </section>
-
-    <!-- ============================================================
-         FLOW DIAGRAM 2: MESSAGE FLOW
-         ============================================================ -->
-    <section class="flow-diagram">
-      <h2>Message Flow</h2>
-      <div class="flow-row">
-        <div class="flow-box" id="mfBox1">Plaintext</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="mfBox2">Encrypt with Public Key</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="mfBox3">Ciphertext</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="mfBox4">Decrypt with Private Key</div>
-        <div class="flow-arrow">&#8594;</div>
-        <div class="flow-box" id="mfBox5">Original Plaintext</div>
-      </div>
-    </section>
-
-    <!-- ============================================================
-         RESULT CARDS GO HERE, ADDED BY script.js
-         ============================================================ -->
-    <section class="results" id="resultsArea"></section>
+    <section id="stepsArea"></section>
 
   </main>
 
   <footer class="lab-footer">
-    RSA Cryptography Virtual Laboratory — a single offline page, no server, no external libraries.
+    RSA Virtual Laboratory — offline, single-page, no external libraries. Teaching tool only, not for real secrets.
   </footer>
 
   <script src="script.js"></script>

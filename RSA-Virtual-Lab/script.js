@@ -1,24 +1,29 @@
 // ==========================================================================
-// RSA Cryptography Virtual Laboratory — script.js
+// RSA Virtual Laboratory — Alice & Bob — script.js
 //
-// Plain JavaScript, plain functions only (no classes, no modules). Every
-// function has a short comment above it saying what it does and what it
-// returns. BigInt is used ONLY inside modPow — everywhere else we use
-// ordinary JavaScript numbers, because these are small "classroom" primes
-// and ordinary numbers are exact and simpler to read for every other
-// calculation on this page.
+// Plain JavaScript, plain named functions only (no classes, no modules, no
+// async, no arrow-function chains). Every RSA function has a short comment
+// above it saying what it does and what it returns. BigInt is used ONLY
+// inside modPow -- everywhere else ordinary numbers are used, because the
+// primes this lab is built for stay small enough that ordinary numbers
+// represent them exactly.
+//
+// Algorithm used, and nothing else:
+//   n = p * q
+//   phi(n) = (p-1)(q-1)
+//   choose e with 1 < e < phi(n) and gcd(e, phi(n)) = 1   (typed by the user)
+//   find d with (e * d) mod phi(n) = 1                     (found by trying
+//                                                            d = 1, 2, 3, ...)
+//   Public key PU = (e, n)      Private key PR = (d, n)
+//   C = M^e mod n               M = C^d mod n
+// No lambda(n)/Carmichael, no padding, no CRT.
 // ==========================================================================
 
-
-// ---- ORDER OF THE BOXES IN EACH FLOW DIAGRAM ----------------------------
-// Used by highlightBox() below to know which boxes come "before" which.
-
-var KEYGEN_BOX_ORDER = ["kgBox1", "kgBox2", "kgBox3", "kgBox4", "kgBox5"];
-var MESSAGE_BOX_ORDER = ["mfBox1", "mfBox2", "mfBox3", "mfBox4", "mfBox5"];
+"use strict";
 
 
 // ==========================================================================
-// BASIC MATH FUNCTIONS
+// CORE RSA FUNCTIONS
 // ==========================================================================
 
 // Checks whether a whole number is prime, by trying to divide it by every
@@ -54,84 +59,62 @@ function gcd(a, b) {
   return a;
 }
 
-// Finds the modular inverse of "a" under modulus "m": the whole number x,
-// between 0 and m-1, such that (a * x) mod m equals 1. This is what turns
-// the public exponent e into the private exponent d.
-//
-// It uses the extended Euclidean algorithm. Alongside the normal Euclidean
-// algorithm's remainders (r), it also tracks a second running number (s).
-// By the time the remainder reaches 1, that matching "s" value is exactly
-// the answer we want -- this is a standard result, not something derived
-// on this page, so this function just runs the bookkeeping.
-//
-// Returns an object: { value: <the inverse, or null if none exists>,
-// steps: <an array of rows so the page can display the working> }.
-function modInverse(a, m) {
-  var oldR = a;
-  var r = m;
-  var oldS = 1;
-  var s = 0;
+// Computes the RSA modulus n = p * q. Returns a whole number.
+function calculateN(p, q) {
+  return p * q;
+}
 
-  var steps = [];
-  steps.push({ r: oldR, quotient: null, s: oldS });
+// Computes Euler's totient phi(n) = (p-1)(q-1). Returns a whole number.
+function calculatePhi(p, q) {
+  return (p - 1) * (q - 1);
+}
 
-  while (r !== 0) {
-    var quotient = Math.floor(oldR / r);
+// Finds the private exponent d by brute force: try d = 1, then d = 2, then
+// d = 3, and so on, stopping as soon as (e * d) mod phi equals 1. This is
+// deliberately the simple, obvious search (not the extended Euclidean
+// algorithm), so every step of the search can be shown on screen.
+// Returns an object: { d: <the answer, or null if none exists in range>,
+// trials: <an array of every d tried, each row recording d, the product
+// e*d, the remainder (e*d) mod phi, and whether that row was the hit> }.
+function calculateD(e, phi) {
+  var trials = [];
+  var found = null;
 
-    // Move the algorithm forward one step: the new remainder is what's
-    // left over after dividing oldR by r as many times as possible.
-    var newR = oldR - quotient * r;
-    oldR = r;
-    r = newR;
-
-    // Track the matching "s" coefficient the same way, one step behind
-    // the remainder above -- this is the part that lets us read off the
-    // inverse at the end instead of just the gcd.
-    var newS = oldS - quotient * s;
-    oldS = s;
-    s = newS;
-
-    // The quotient we just used belongs to the PREVIOUS row (it's what
-    // produced this new row), so fill it in on the row before this one.
-    steps[steps.length - 1].quotient = quotient;
-    steps.push({ r: oldR, quotient: null, s: oldS });
+  for (var d = 1; d < phi; d = d + 1) {
+    var product = e * d;
+    var remainder = product % phi;
+    var isHit = (remainder === 1);
+    trials.push({ d: d, product: product, remainder: remainder, isHit: isHit });
+    if (isHit) {
+      found = d;
+      break;
+    }
   }
 
-  if (oldR !== 1) {
-    // The final remainder (the gcd of a and m) is not 1, so a and m share
-    // a common factor and no inverse exists.
-    return { value: null, steps: steps };
-  }
-
-  // oldS is the answer, but it can come out negative (e.g. -13). Adding m
-  // to it brings it into the normal range [0, m) without changing what it
-  // means modulo m.
-  var inverse = oldS % m;
-  if (inverse < 0) {
-    inverse = inverse + m;
-  }
-  return { value: inverse, steps: steps };
+  return { d: found, trials: trials };
 }
 
 // Computes (base ^ exponent) mod modulus, using the "square-and-multiply"
-// method, which needs only about log2(exponent) multiplications instead of
-// doing "exponent" multiplications one at a time.
+// method (also called repeated squaring), which needs only about
+// log2(exponent) multiplications instead of doing "exponent" multiplications
+// one at a time.
 //
-// This is the ONE place on this page that uses BigInt. Two reasons:
-//   1. While working through the exponent bit by bit, the numbers being
-//      squared can briefly get larger than a normal JavaScript number can
-//      hold exactly (normal numbers are only exact up to 2^53). BigInt has
-//      no such limit.
-//   2. JavaScript's Math.pow(base, exponent) computes in floating point,
-//      which rounds large results instead of giving an exact whole-number
-//      answer -- unusable for cryptography, where the exact remainder is
-//      the entire point.
-// BigInt values are converted from normal numbers right at the start of
-// this function, and the final BigInt result is converted back to a
-// normal number right before returning, so the rest of the program never
-// has to deal with BigInt at all. (BigInt and normal numbers cannot be
-// mixed in the same calculation -- JavaScript throws an error if you try
-// -- which is exactly why the conversion happens at the boundary here.)
+// This is the ONE function on this page that uses BigInt. While working
+// through the exponent bit by bit, the numbers being squared can briefly
+// get larger than an ordinary JavaScript number can hold exactly (ordinary
+// numbers are only exact up to 2^53); BigInt has no such limit. Ordinary
+// exponentiation operators are also unusable here on purpose: Math.pow and
+// the ** operator both compute in floating point, which would round a
+// large result instead of giving the exact whole-number remainder that
+// cryptography needs.
+//
+// BigInt values are created from ordinary numbers right at the top of this
+// function, and the final BigInt answer is converted back to an ordinary
+// number right before returning, so nothing outside this function ever has
+// to deal with BigInt. (BigInt and ordinary numbers can never appear
+// together in the same arithmetic expression -- JavaScript throws a
+// TypeError if you try -- which is exactly why the conversion happens at
+// the boundary here, and nowhere else.)
 function modPow(base, exponent, modulus) {
   var result = 1n;
   var b = BigInt(base) % BigInt(modulus);
@@ -140,40 +123,97 @@ function modPow(base, exponent, modulus) {
 
   while (e > 0n) {
     if (e % 2n === 1n) {
-      // The current lowest bit of the exponent is 1, so multiply this
-      // power of the base into the running result.
+      // The lowest bit of what's left of the exponent is 1, so multiply
+      // this power of the base into the running result.
       result = (result * b) % m;
     }
     b = (b * b) % m; // square the base, ready for the next bit
-    e = e / 2n; // BigInt division drops the remainder, same as moving to the next bit
+    e = e / 2n; // BigInt division drops the remainder -- this moves to the next bit
   }
 
   return Number(result);
 }
 
-// Searches for a valid public exponent e: a whole number with
-// 1 < e < phi, and gcd(e, phi) equal to 1 (sharing no common factor with
-// phi). Tries e = 2, 3, 4, ... in order and stops at the first one that
-// works, recording every value it tried along the way.
-// Returns an object: { value: <the chosen e, or null if none exists>,
-// candidates: <an array of every e tried, with its gcd and whether it
-// was accepted> }.
-function findPublicExponent(phi) {
-  var candidates = [];
-  for (var e = 2; e < phi; e = e + 1) {
-    var gcdValue = gcd(e, phi);
-    var isValid = (gcdValue === 1);
-    candidates.push({ value: e, gcdValue: gcdValue, isValid: isValid });
-    if (isValid) {
-      return { value: e, candidates: candidates };
+// Converts one uppercase letter A-Z into its number 0-25 (A=0, B=1, ...
+// Z=25). Returns null for a space, since a space is never turned into a
+// number -- it passes through encryption untouched.
+function charToNum(ch) {
+  if (ch === " ") {
+    return null;
+  }
+  return ch.charCodeAt(0) - "A".charCodeAt(0);
+}
+
+// Converts a number 0-25 back into its uppercase letter A-Z (the reverse
+// of charToNum). Returns a single-character string.
+function numToChar(num) {
+  return String.fromCharCode(num + "A".charCodeAt(0));
+}
+
+// Encrypts a message letter by letter with the public key (e, n). message
+// must already be uppercase A-Z and spaces only (validateMessageCharacters
+// below checks that before this is ever called).
+// Returns an array with one entry per character of the message:
+//   { char: the original letter (or space), isSpace: true/false,
+//     plainNum: 0-25 (or null for a space),
+//     cipherNum: plainNum^e mod n (or null for a space) }
+function rsaEncrypt(message, e, n) {
+  var entries = [];
+  for (var i = 0; i < message.length; i = i + 1) {
+    var ch = message.charAt(i);
+    if (ch === " ") {
+      entries.push({ char: ch, isSpace: true, plainNum: null, cipherNum: null });
+    } else {
+      var plainNum = charToNum(ch);
+      var cipherNum = modPow(plainNum, e, n);
+      entries.push({ char: ch, isSpace: false, plainNum: plainNum, cipherNum: cipherNum });
     }
   }
-  return { value: null, candidates: candidates };
+  return entries;
+}
+
+// Decrypts a list of received blocks with the private key (d, n).
+// receivedEntries is the array rsaEncrypt produced (or an equivalent array
+// with at least isSpace and cipherNum on each entry) -- exactly what was
+// "transmitted".
+// Returns a new array with one entry per character:
+//   { isSpace: true/false, cipherNum: the value that was received,
+//     decryptedNum: 0-25 (or null for a space),
+//     decryptedChar: the recovered letter (or a space) }
+function rsaDecrypt(receivedEntries, d, n) {
+  var results = [];
+  for (var i = 0; i < receivedEntries.length; i = i + 1) {
+    var entry = receivedEntries[i];
+    if (entry.isSpace) {
+      results.push({ isSpace: true, cipherNum: null, decryptedNum: null, decryptedChar: " " });
+    } else {
+      var decryptedNum = modPow(entry.cipherNum, d, n);
+      var decryptedChar = numToChar(decryptedNum);
+      results.push({
+        isSpace: false,
+        cipherNum: entry.cipherNum,
+        decryptedNum: decryptedNum,
+        decryptedChar: decryptedChar
+      });
+    }
+  }
+  return results;
+}
+
+// Joins an array of entries (from rsaEncrypt or rsaDecrypt) back into a
+// plain text string, reading whichever field name holds the character on
+// each entry. Returns a string.
+function entriesToText(entries, charField) {
+  var text = "";
+  for (var i = 0; i < entries.length; i = i + 1) {
+    text = text + entries[i][charField];
+  }
+  return text;
 }
 
 
 // ==========================================================================
-// READING AND VALIDATING THE INPUT FIELDS
+// VALIDATION
 // ==========================================================================
 
 // Checks whether a piece of text is a valid non-negative whole number
@@ -186,28 +226,22 @@ function isValidNonNegativeInteger(text) {
   return /^[0-9]+$/.test(text);
 }
 
-// Reads every input field, checks it, and works out whether the page has
-// enough valid information to run the RSA demonstration. Every problem
-// found is recorded against the specific field it belongs to, so the page
-// can show each message next to the field it's about (never a popup).
-//
-// Returns an object: { ok: true/false, p, q, m, eOverride, errors }.
-// p, q, m and eOverride are the parsed numbers where valid, or null where
-// not. errors.p / errors.q / errors.m / errors.e are the message strings
-// to display (empty string means "no problem with this field").
-function validateInputs() {
-  var pText = document.getElementById("inputP").value.trim();
-  var qText = document.getElementById("inputQ").value.trim();
-  var mText = document.getElementById("inputM").value.trim();
-  var eText = document.getElementById("inputE").value.trim();
+// Validates one person's three input fields (p, q, e) and, if they're all
+// valid, computes n, phi(n) and d for them. prefix is "alice" or "bob",
+// used to find the right input elements on the page.
+// Returns an object:
+//   { ok: true/false, p, q, e, n, phi, d, dTrials,
+//     errors: { p: "", q: "", e: "" } }
+// (errors hold empty strings where there is no problem).
+function validatePerson(prefix) {
+  var pText = document.getElementById(prefix + "-p").value.trim();
+  var qText = document.getElementById(prefix + "-q").value.trim();
+  var eText = document.getElementById(prefix + "-e").value.trim();
 
   var result = {
     ok: true,
-    p: null,
-    q: null,
-    m: null,
-    eOverride: null,
-    errors: { p: "", q: "", m: "", e: "" }
+    p: null, q: null, e: null, n: null, phi: null, d: null, dTrials: null,
+    errors: { p: "", q: "", e: "" }
   };
 
   // --- p ---
@@ -245,390 +279,679 @@ function validateInputs() {
     result.q = null;
   }
 
-  // --- p and q must not be so small that no public exponent can exist ---
-  // phi(n) = (p-1)(q-1) needs to be at least 3 for the range 1 < e < phi
-  // to contain any whole number at all. (The only prime pair this ever
-  // rejects is p=2 with q=3, or the other way round.)
-  if (result.p !== null && result.q !== null) {
-    var previewPhi = (result.p - 1) * (result.q - 1);
-    if (previewPhi < 3) {
-      result.errors.q =
-        "p and q are too small: phi(n) would be " + previewPhi +
-        ", leaving no valid public exponent. Choose larger primes.";
-      result.ok = false;
-      result.p = null;
-      result.q = null;
-    }
-  }
-
-  // --- M ---
-  if (!isValidNonNegativeInteger(mText)) {
-    result.errors.m = "M must be a non-negative whole number.";
-    result.ok = false;
-  } else {
-    var mValue = parseInt(mText, 10);
-    if (result.p !== null && result.q !== null) {
-      var previewN = result.p * result.q;
-      if (mValue >= previewN) {
-        result.errors.m =
-          "M must be smaller than n (M = " + mValue + ", n = " + previewN +
-          "). The message must be smaller than the modulus.";
-        result.ok = false;
-      } else {
-        result.m = mValue;
-      }
-    } else {
-      // p or q is invalid, so we can't check M against n yet, but M itself
-      // is at least a valid whole number.
-      result.m = mValue;
-    }
-  }
-
-  // --- optional custom e ---
-  if (eText.length > 0) {
-    if (!isValidNonNegativeInteger(eText)) {
+  // From here on we need valid p and q to say anything useful about e.
+  if (result.p === null || result.q === null) {
+    if (eText.length === 0) {
       result.errors.e = "e must be a whole number.";
-      result.ok = false;
-    } else if (result.p === null || result.q === null) {
-      result.errors.e = "fix p and q first, then choose a custom e.";
-      result.ok = false;
-    } else {
-      var eValue = parseInt(eText, 10);
-      var phiForE = (result.p - 1) * (result.q - 1);
-      if (eValue <= 1 || eValue >= phiForE) {
-        result.errors.e =
-          "e must satisfy 1 < e < phi(n) (phi(n) = " + phiForE + ").";
-        result.ok = false;
-      } else if (gcd(eValue, phiForE) !== 1) {
-        result.errors.e =
-          "e must share no common factor with phi(n) = " + phiForE +
-          " (gcd(e, phi(n)) must be 1).";
-        result.ok = false;
-      } else {
-        result.eOverride = eValue;
-      }
     }
+    return result;
   }
+
+  var n = calculateN(result.p, result.q);
+  var phi = calculatePhi(result.p, result.q);
+  result.n = n;
+  result.phi = phi;
+
+  // --- e ---
+  if (!isValidNonNegativeInteger(eText)) {
+    result.errors.e = "e must be a whole number.";
+    result.ok = false;
+    return result;
+  }
+  var eValue = parseInt(eText, 10);
+  if (!(eValue > 1 && eValue < phi)) {
+    result.errors.e = "e must satisfy 1 < e < phi(n) (phi(n) = " + phi + ").";
+    result.ok = false;
+    return result;
+  }
+  var eGcd = gcd(eValue, phi);
+  if (eGcd !== 1) {
+    result.errors.e =
+      "e must share no common factor with phi(n) = " + phi +
+      " (gcd(e, phi(n)) = " + eGcd + ", must be 1).";
+    result.ok = false;
+    return result;
+  }
+  result.e = eValue;
+
+  // --- d must exist (it always will once the gcd check above passes, but
+  //     this is checked directly rather than assumed) ---
+  var dResult = calculateD(eValue, phi);
+  if (dResult.d === null) {
+    result.errors.e = "no private exponent d exists for this e and phi(n).";
+    result.ok = false;
+    return result;
+  }
+  result.d = dResult.d;
+  result.dTrials = dResult.trials;
 
   return result;
 }
 
-// Puts the error messages from validateInputs() onto the page, next to
-// each field. Does not return anything.
-function showFieldErrors(errors) {
-  document.getElementById("errorP").textContent = errors.p;
-  document.getElementById("errorQ").textContent = errors.q;
-  document.getElementById("errorM").textContent = errors.m;
-  document.getElementById("errorE").textContent = errors.e;
+// Validates both Alice's and Bob's input fields, writes any error messages
+// onto the page next to the field they belong to, and returns the combined
+// result. This is the page's single entry point for checking Step 1.
+// Returns { ok: true/false, alice: <validatePerson result>, bob: <validatePerson result> }.
+function validateInputs() {
+  var aliceResult = validatePerson("alice");
+  var bobResult = validatePerson("bob");
+
+  document.getElementById("alice-p-error").textContent = aliceResult.errors.p;
+  document.getElementById("alice-q-error").textContent = aliceResult.errors.q;
+  document.getElementById("alice-e-error").textContent = aliceResult.errors.e;
+  document.getElementById("bob-p-error").textContent = bobResult.errors.p;
+  document.getElementById("bob-q-error").textContent = bobResult.errors.q;
+  document.getElementById("bob-e-error").textContent = bobResult.errors.e;
+
+  return { ok: aliceResult.ok && bobResult.ok, alice: aliceResult, bob: bobResult };
+}
+
+// Checks that a typed message contains only uppercase letters A-Z and
+// spaces (the text is uppercased first, so lowercase letters are fine to
+// type). Returns { ok: true/false, cleaned: <uppercased text>,
+// errorChar: <the first character that isn't allowed, if any> }.
+function validateMessageCharacters(rawText) {
+  var cleaned = rawText.toUpperCase();
+  for (var i = 0; i < cleaned.length; i = i + 1) {
+    var ch = cleaned.charAt(i);
+    var isLetter = ch >= "A" && ch <= "Z";
+    if (!isLetter && ch !== " ") {
+      return { ok: false, cleaned: cleaned, errorChar: ch };
+    }
+  }
+  return { ok: true, cleaned: cleaned, errorChar: null };
+}
+
+// Checks that every letter in a message maps to a number smaller than the
+// modulus n it's about to be encrypted with (spaces are skipped, since
+// they are never turned into a number). Returns { ok: true/false,
+// offendingChar: <the first letter that's too big, if any>,
+// offendingValue: <that letter's number, if any> }.
+function checkMessageFitsModulus(cleanedMessage, n) {
+  for (var i = 0; i < cleanedMessage.length; i = i + 1) {
+    var ch = cleanedMessage.charAt(i);
+    if (ch === " ") {
+      continue;
+    }
+    var value = charToNum(ch);
+    if (value >= n) {
+      return { ok: false, offendingChar: ch, offendingValue: value };
+    }
+  }
+  return { ok: true, offendingChar: null, offendingValue: null };
 }
 
 
 // ==========================================================================
-// BUILDING THE RESULT CARDS
+// TINY DOM HELPERS
 // ==========================================================================
 
-// Builds one result-step card as an HTML element, ready to be added to the
-// page. stepNumber and title go in the card's heading; bodyHtml is the
-// card's main content (already-built HTML, since it's made only from
-// numbers this page calculated itself, not from raw user text). extraClass
-// adds a special colour (for the public/private key cards and the
-// verification card). delayIndex controls how long this card waits before
-// its fade-in animation starts, so cards appear one after another.
-// Returns the new card element.
-function createStepCard(stepNumber, title, bodyHtml, extraClass, delayIndex) {
+function $(id) {
+  return document.getElementById(id);
+}
+
+// Appends a new step card to the page (steps are never removed once shown
+// -- earlier steps stay visible below the current one, like a running
+// record of the whole experiment). Returns the card element, so the
+// caller can look inside it for buttons/inputs it just created.
+function appendStepCard(stepNumber, title, bodyHtml) {
   var card = document.createElement("div");
   card.className = "step-card";
-  if (extraClass) {
-    card.className = card.className + " " + extraClass;
-  }
-  card.style.animationDelay = (delayIndex * 0.12) + "s";
 
-  var badge = document.createElement("div");
+  var badge = document.createElement("span");
   badge.className = "step-badge";
   badge.textContent = "Step " + stepNumber;
-  card.appendChild(badge);
 
   var heading = document.createElement("h3");
-  heading.textContent = title;
+  heading.appendChild(badge);
+  heading.appendChild(document.createTextNode(title));
   card.appendChild(heading);
 
   var body = document.createElement("div");
   body.innerHTML = bodyHtml;
   card.appendChild(body);
 
+  $("stepsArea").appendChild(card);
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   return card;
 }
 
-// Builds the small HTML table listing every candidate e that was tried
-// while looking for a public exponent, with its gcd against phi(n) and
-// whether it was accepted. Returns an HTML string.
-function buildCandidateTableHtml(candidates) {
-  var html = "<table class='working-table'><tr><th>e tried</th><th>gcd(e, &phi;(n))</th><th>valid?</th></tr>";
-  for (var i = 0; i < candidates.length; i = i + 1) {
-    var row = candidates[i];
-    var rowClass = row.isValid ? "row-valid" : "row-invalid";
-    html = html + "<tr class='" + rowClass + "'><td>" + row.value + "</td><td>" +
-      row.gcdValue + "</td><td>" + (row.isValid ? "yes" : "no") + "</td></tr>";
-  }
-  html = html + "</table>";
-  return html;
-}
 
-// Builds the small HTML table showing the extended Euclidean algorithm's
-// working while it searches for d. Returns an HTML string.
-function buildEuclidTableHtml(steps) {
-  var html = "<table class='working-table'><tr><th>r</th><th>quotient</th><th>s</th></tr>";
-  for (var i = 0; i < steps.length; i = i + 1) {
-    var row = steps[i];
-    html = html + "<tr><td>" + row.r + "</td><td>" +
-      (row.quotient === null ? "&mdash;" : row.quotient) + "</td><td>" + row.s + "</td></tr>";
-  }
-  html = html + "</table>";
-  return html;
-}
+// ==========================================================================
+// STATE
+// ==========================================================================
+
+var STEP_LABELS = [
+  "", // no step 0
+  "Enter Parameters",
+  "Alice's Keys",
+  "Bob's Keys",
+  "Alice → Bob",
+  "Encrypt Alice's Message",
+  "Send Ciphertext",
+  "Bob Decrypts",
+  "Bob → Alice",
+  "Encrypt Bob's Message",
+  "Send Ciphertext",
+  "Alice Decrypts",
+  "Verification"
+];
+
+var state = {
+  currentStep: 1,
+  alice: null,
+  bob: null,
+  a2b: null, // { message, entries, decrypted }
+  b2a: null
+};
 
 
 // ==========================================================================
-// FLOW DIAGRAM HIGHLIGHTING
+// PROGRESS BAR
 // ==========================================================================
 
-// Marks one box in a flow diagram as the current ("active") stage, and
-// every box before it in the given order as already completed ("done").
-// orderList is one of KEYGEN_BOX_ORDER or MESSAGE_BOX_ORDER above.
+// Updates the progress bar's fill width and label to match state.currentStep.
 // Does not return anything.
-function highlightBox(orderList, activeBoxId) {
-  var reachedActive = false;
-  for (var i = 0; i < orderList.length; i = i + 1) {
-    var boxElement = document.getElementById(orderList[i]);
-    boxElement.classList.remove("active");
-    boxElement.classList.remove("done");
-    if (orderList[i] === activeBoxId) {
-      boxElement.classList.add("active");
-      reachedActive = true;
-    } else if (!reachedActive) {
-      boxElement.classList.add("done");
+function updateProgressBar() {
+  var percent = Math.round((state.currentStep / 12) * 100);
+  $("progressFill").style.width = percent + "%";
+  $("progressLabel").textContent =
+    "Step " + state.currentStep + " of 12 — " + STEP_LABELS[state.currentStep];
+}
+
+
+// ==========================================================================
+// SHARED HTML BUILDERS (used by both directions)
+// ==========================================================================
+
+// Builds the small vertical flow diagram (plain HTML boxes + CSS arrows)
+// for one message direction. Returns an HTML string.
+function buildFlowDiagramHtml(senderName, receiverName, encryptKeyLabel, encryptKeyValue, decryptKeyLabel, decryptKeyValue) {
+  var boxes = [
+    { text: "Plaintext (" + senderName + "'s message)", keyStep: false },
+    { text: "Key used: " + encryptKeyLabel + " = " + encryptKeyValue, keyStep: true },
+    { text: "Encrypt", keyStep: false },
+    { text: "Ciphertext", keyStep: false },
+    { text: "Transmit to " + receiverName, keyStep: false },
+    { text: "Key used: " + decryptKeyLabel + " = " + decryptKeyValue, keyStep: true },
+    { text: "Decrypt", keyStep: false },
+    { text: "Plaintext (recovered)", keyStep: false }
+  ];
+
+  var html = "<div class='flow-diagram'>";
+  for (var i = 0; i < boxes.length; i = i + 1) {
+    if (i > 0) {
+      html = html + "<div class='flow-arrow-down'>&#8595;</div>";
+    }
+    var extraClass = boxes[i].keyStep ? " key-step" : "";
+    html = html + "<div class='flow-box" + extraClass + "'>" + boxes[i].text + "</div>";
+  }
+  html = html + "</div>";
+  return html;
+}
+
+// Builds the table showing calculateD's search: the first few trials, a
+// "..." gap if the hit wasn't near the start, and the hit row itself.
+// Returns an HTML string.
+function buildDTrialsTableHtml(trials) {
+  var rowsToShow = [];
+  var previewCount = Math.min(3, trials.length);
+  for (var i = 0; i < previewCount; i = i + 1) {
+    rowsToShow.push(trials[i]);
+  }
+  var hitIndex = -1;
+  for (var j = 0; j < trials.length; j = j + 1) {
+    if (trials[j].isHit) {
+      hitIndex = j;
+      break;
     }
   }
+  var needsGap = hitIndex >= previewCount;
+
+  var html = "<table class='working-table'><tr><th>d tried</th><th>e &times; d</th><th>(e &times; d) mod &phi;(n)</th><th>hit?</th></tr>";
+  for (var k = 0; k < rowsToShow.length; k = k + 1) {
+    html = html + buildDTrialRowHtml(rowsToShow[k]);
+  }
+  if (needsGap) {
+    html = html + "<tr><td colspan='4'>&hellip;</td></tr>";
+    html = html + buildDTrialRowHtml(trials[hitIndex]);
+  }
+  html = html + "</table>";
+  return html;
 }
 
-// Removes all highlighting from both flow diagrams, back to their starting
-// (plain) state. Does not return anything.
-function resetDiagrams() {
-  var allBoxIds = KEYGEN_BOX_ORDER.concat(MESSAGE_BOX_ORDER);
-  for (var i = 0; i < allBoxIds.length; i = i + 1) {
-    var boxElement = document.getElementById(allBoxIds[i]);
-    boxElement.classList.remove("active");
-    boxElement.classList.remove("done");
-  }
+function buildDTrialRowHtml(row) {
+  var rowClass = row.isHit ? " class='row-hit'" : "";
+  return "<tr" + rowClass + "><td>" + row.d + "</td><td>" + row.product + "</td><td>" +
+    row.remainder + "</td><td>" + (row.isHit ? "yes ✓" : "no") + "</td></tr>";
 }
 
+// Builds the key-generation card body (n, phi(n), d-search, public/private
+// key boxes) for one person. Returns an HTML string.
+function buildKeysCardHtml(personLabel, person) {
+  var html = "";
+  html = html + "<p class='formula'>n = p &times; q</p>";
+  html = html + "<p class='formula-sub'>n = " + person.p + " &times; " + person.q + " = <b>" + person.n + "</b></p>";
+  html = html + "<p class='formula'>&phi;(n) = (p &minus; 1)(q &minus; 1)</p>";
+  html = html + "<p class='formula-sub'>&phi;(n) = (" + person.p + " &minus; 1)(" + person.q + " &minus; 1) = <b>" + person.phi + "</b></p>";
+  html = html + "<p class='formula'>Find d so that (e &times; d) mod &phi;(n) = 1, by trying d = 1, 2, 3, &hellip;</p>";
+  html = html + buildDTrialsTableHtml(person.dTrials);
+  html = html + "<div class='key-box public'><span class='key-tag'>SHAREABLE</span><br>Public Key PU = (e, n) = <span class='key-value'>(" + person.e + ", " + person.n + ")</span></div>";
+  html = html + "<div class='key-box private'><span class='key-tag'>SECRET</span><br>Private Key PR = (d, n) = <span class='key-value'>(" + person.d + ", " + person.n + ")</span></div>";
+  return html;
+}
 
-// ==========================================================================
-// MAIN BUTTON ACTIONS
-// ==========================================================================
-
-// Runs the whole RSA demonstration: reads and validates the inputs, and
-// if they're all valid, builds and shows every result card in order,
-// updating the two flow diagrams as it goes. This is the click handler
-// for the "Generate RSA" button. Does not return anything.
-function generateRSA() {
-  var resultsArea = document.getElementById("resultsArea");
-  resultsArea.innerHTML = "";
-  resetDiagrams();
-
-  var inputs = validateInputs();
-  showFieldErrors(inputs.errors);
-  if (!inputs.ok) {
-    return; // stop here -- no cards are shown until every input is valid
+// Builds the character-mapping / encryption working table for a message.
+// Returns an HTML string.
+function buildEncryptTableHtml(entries, e, n) {
+  var html = "<table class='working-table'><tr><th>char</th><th>number</th><th>C = number<sup>" + e + "</sup> mod " + n + "</th></tr>";
+  for (var i = 0; i < entries.length; i = i + 1) {
+    var entry = entries[i];
+    if (entry.isSpace) {
+      html = html + "<tr class='row-space'><td>(space)</td><td colspan='2'>space — not encrypted</td></tr>";
+    } else {
+      html = html + "<tr><td>" + entry.char + " &rarr; " + entry.plainNum + "</td><td>" + entry.plainNum + "</td><td><b>" + entry.cipherNum + "</b></td></tr>";
+    }
   }
+  html = html + "</table>";
+  return html;
+}
 
-  var p = inputs.p;
-  var q = inputs.q;
-  var m = inputs.m;
+// Builds the decryption working table for a received message.
+// Returns an HTML string.
+function buildDecryptTableHtml(results, d, n) {
+  var html = "<table class='working-table'><tr><th>received</th><th>M = received<sup>" + d + "</sup> mod " + n + "</th><th>letter</th></tr>";
+  for (var i = 0; i < results.length; i = i + 1) {
+    var r = results[i];
+    if (r.isSpace) {
+      html = html + "<tr class='row-space'><td colspan='3'>space — passed through</td></tr>";
+    } else {
+      html = html + "<tr><td>" + r.cipherNum + "</td><td>" + r.decryptedNum + "</td><td><b>" + r.decryptedChar + "</b></td></tr>";
+    }
+  }
+  html = html + "</table>";
+  return html;
+}
 
-  // Show the progress bar and let its CSS transition animate it filling up.
-  var progressTrack = document.getElementById("progressTrack");
-  var progressFill = document.getElementById("progressFill");
-  progressTrack.hidden = false;
-  progressFill.classList.remove("filled");
-  // Reading offsetWidth forces the browser to notice the class was removed
-  // before we add it back, so the fill animation restarts every time this
-  // button is clicked (otherwise a second click with no change would not
-  // re-trigger the CSS transition).
-  void progressFill.offsetWidth;
-  progressFill.classList.add("filled");
-
-  var stepNumber = 1;
-  var delay = 0;
-
-  // Step 1: confirm p and q passed validation.
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Validate p and q",
-    "<p>p = <b>" + p + "</b> is prime. &#10003;</p>" +
-    "<p>q = <b>" + q + "</b> is prime. &#10003;</p>" +
-    "<p>p and q are different. &#10003;</p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(KEYGEN_BOX_ORDER, "kgBox1");
-
-  // Step 2: n = p * q
-  var n = p * q;
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Compute the modulus n",
-    "<p class='formula'>n = p &times; q</p>" +
-    "<p class='formula-sub'>n = " + p + " &times; " + q + " = <b>" + n + "</b></p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-
-  // Step 3: phi(n) = (p-1)(q-1)
-  var phi = (p - 1) * (q - 1);
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Compute φ(n)",
-    "<p class='formula'>&phi;(n) = (p &minus; 1)(q &minus; 1)</p>" +
-    "<p class='formula-sub'>&phi;(n) = (" + p + " &minus; 1)(" + q + " &minus; 1) = " +
-    (p - 1) + " &times; " + (q - 1) + " = <b>" + phi + "</b></p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(KEYGEN_BOX_ORDER, "kgBox2");
-
-  // Step 4: choose e (auto-search, or use the caller's override).
-  var ePick;
-  if (inputs.eOverride !== null) {
-    ePick = {
-      value: inputs.eOverride,
-      candidates: [{ value: inputs.eOverride, gcdValue: 1, isValid: true }]
-    };
+// Builds the green/red verification box comparing the original message to
+// what was decrypted. Returns an HTML string.
+function buildVerifyBoxHtml(original, decrypted) {
+  var success = (original === decrypted);
+  var boxClass = success ? "verify-box success" : "verify-box fail";
+  var html = "<div class='compare-row'>";
+  html = html + "<div class='compare-item'>Original:&nbsp; \"" + original + "\"</div>";
+  html = html + "<div class='compare-item'>Decrypted:&nbsp; \"" + decrypted + "\"</div>";
+  html = html + "</div>";
+  if (success) {
+    html = html + "<div class='" + boxClass + "'>&#9989; MESSAGE SUCCESSFULLY RECOVERED</div>";
   } else {
-    ePick = findPublicExponent(phi);
+    html = html + "<div class='" + boxClass + "'>&#10060; VERIFICATION FAILED — recovered text does not match the original</div>";
   }
-  // ePick.value cannot be null here, because validateInputs() already
-  // rejected any p/q pair small enough for that to happen -- but the check
-  // stays in as a safety net rather than assuming that reasoning holds
-  // forever if this code is ever changed.
-  if (ePick.value === null) {
-    document.getElementById("errorE").textContent =
-      "No valid public exponent e exists for phi(n) = " + phi + ".";
-    progressTrack.hidden = true;
+  return html;
+}
+
+// Builds the big animated communication area for one direction. Returns
+// the card's HTML string; the packet element is found and animated
+// separately afterwards (see animatePacket below).
+function buildCommAreaHtml(senderName, senderAvatar, senderClass, receiverName, receiverAvatar, receiverClass) {
+  var html = "<div class='not-sent-banner'>The original message is NOT sent.<br>Only the encrypted ciphertext is transmitted.</div>";
+  html = html + "<div class='comm-area'>";
+  html = html + "<div class='person-card " + senderClass + "-card role-sending'>";
+  html = html + "<span class='role-label sending'>SENDING</span>";
+  html = html + "<span class='avatar-big'>" + senderAvatar + "</span>";
+  html = html + "<div class='person-name'>" + senderName + "</div>";
+  html = html + "</div>";
+  html = html + "<div class='comm-gap'><div class='packet'>&#128274; CIPHERTEXT</div></div>";
+  html = html + "<div class='person-card " + receiverClass + "-card role-receiving'>";
+  html = html + "<span class='role-label receiving'>RECEIVING</span>";
+  html = html + "<span class='avatar-big'>" + receiverAvatar + "</span>";
+  html = html + "<div class='person-name'>" + receiverName + "</div>";
+  html = html + "</div>";
+  html = html + "</div>";
+  return html;
+}
+
+// How long the packet's CSS "left" transition takes, in milliseconds. Must
+// match the "transition: left ..." duration on .packet in style.css.
+var PACKET_TRAVEL_MS = 1800;
+
+// Starts the packet-travel animation inside a just-created comm area card,
+// moving the packet from the left side to the right side (or right to
+// left, if reversed is true). Calls onFinished once, after the travel is
+// done. Does not return anything.
+//
+// Two different signals both call onFinished: the CSS "transitionend"
+// event, and a plain timer (setTimeout) set to the same duration as the
+// CSS transition. Normally transitionend alone would be enough, but
+// browsers are allowed to delay or drop transition events for a tab that
+// isn't the front-most, active one (to save power) -- so relying on it
+// alone risks leaving the page stuck with no visible way to continue. The
+// "calledAlready" guard makes sure onFinished only actually runs once, no
+// matter which of the two signals arrives first.
+function animatePacket(card, reversed, onFinished) {
+  var packet = card.querySelector(".packet");
+  var calledAlready = false;
+
+  function finishOnce() {
+    if (calledAlready) {
+      return;
+    }
+    calledAlready = true;
+    onFinished();
+  }
+
+  var startLeft = reversed ? "90%" : "2%";
+  var endLeft = reversed ? "2%" : "90%";
+
+  packet.style.transition = "none";
+  packet.style.left = startLeft;
+
+  // Force the browser to paint the starting position before we switch on
+  // the transition and change the target position -- otherwise it can
+  // skip straight to the end position with no visible movement at all.
+  void packet.offsetWidth;
+
+  packet.style.transition = "";
+  packet.addEventListener("transitionend", function handleDone() {
+    packet.removeEventListener("transitionend", handleDone);
+    finishOnce();
+  });
+  packet.style.left = endLeft;
+
+  setTimeout(finishOnce, PACKET_TRAVEL_MS + 200);
+}
+
+
+// ==========================================================================
+// STEP 1: GENERATE KEYS / RESET / LOAD SAMPLE
+// ==========================================================================
+
+function lockStep1Inputs() {
+  var ids = ["alice-p", "alice-q", "alice-e", "bob-p", "bob-q", "bob-e"];
+  for (var i = 0; i < ids.length; i = i + 1) {
+    $(ids[i]).disabled = true;
+  }
+  $("generateKeysBtn").disabled = true;
+  $("loadSampleBtn").disabled = true;
+}
+
+function unlockStep1Inputs() {
+  var ids = ["alice-p", "alice-q", "alice-e", "bob-p", "bob-q", "bob-e"];
+  for (var i = 0; i < ids.length; i = i + 1) {
+    $(ids[i]).disabled = false;
+    $(ids[i]).value = "";
+  }
+  $("generateKeysBtn").disabled = false;
+  $("loadSampleBtn").disabled = false;
+}
+
+function onGenerateKeysClick() {
+  var validated = validateInputs();
+  if (!validated.ok) {
     return;
   }
-  var e = ePick.value;
-  var eNote = inputs.eOverride !== null ? " (chosen by you)" : "";
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Choose the public exponent e",
-    "<p class='formula'>1 &lt; e &lt; &phi;(n) and gcd(e, &phi;(n)) = 1</p>" +
-    buildCandidateTableHtml(ePick.candidates) +
-    "<p>Chosen e = <b>" + e + "</b>" + eNote + "</p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(KEYGEN_BOX_ORDER, "kgBox3");
-
-  // Step 5: find d, the modular inverse of e mod phi(n).
-  var dResult = modInverse(e, phi);
-  var d = dResult.value;
-  var check = (d * e) % phi;
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Find the private exponent d",
-    "<p class='formula'>(d &times; e) mod &phi;(n) = 1</p>" +
-    buildEuclidTableHtml(dResult.steps) +
-    "<p>d = <b>" + d + "</b> &nbsp; (check: " + d + " &times; " + e + " mod " + phi + " = " + check + ")</p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(KEYGEN_BOX_ORDER, "kgBox4");
-
-  // Step 6: public key card.
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Public Key",
-    "<p class='key-display'>(e, n) = (" + e + ", " + n + ")</p>" +
-    "<p class='key-note'>This pair can be shared with anyone.</p>",
-    "public-key-card", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-
-  // Step 7: private key card.
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Private Key",
-    "<p class='key-display'>(d, n) = (" + d + ", " + n + ")</p>" +
-    "<p class='key-note'>This pair must be kept secret.</p>",
-    "private-key-card", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(KEYGEN_BOX_ORDER, "kgBox5");
-  highlightBox(MESSAGE_BOX_ORDER, "mfBox1");
-
-  // Step 8: encrypt. C = M^e mod n
-  var c = modPow(m, e, n);
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Encrypt",
-    "<p class='formula'>C = M<sup>e</sup> mod n</p>" +
-    "<p class='formula-sub'>C = " + m + "<sup>" + e + "</sup> mod " + n + " = <b>" + c + "</b></p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(MESSAGE_BOX_ORDER, "mfBox2");
-
-  // Step 9: decrypt. M = C^d mod n
-  var decrypted = modPow(c, d, n);
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Decrypt",
-    "<p class='formula'>M = C<sup>d</sup> mod n</p>" +
-    "<p class='formula-sub'>M = " + c + "<sup>" + d + "</sup> mod " + n + " = <b>" + decrypted + "</b></p>",
-    "", delay
-  ));
-  stepNumber = stepNumber + 1;
-  delay = delay + 1;
-  highlightBox(MESSAGE_BOX_ORDER, "mfBox4");
-
-  // Step 10: verification.
-  var success = (decrypted === m);
-  var verifyHtml = success
-    ? "<p>&#9989; Verification Successful &mdash; the decrypted value (" + decrypted +
-      ") equals the original message M (" + m + ").</p>"
-    : "<p>&#10060; Verification Failed &mdash; the decrypted value (" + decrypted +
-      ") does not equal the original message M (" + m + ").</p>";
-  resultsArea.appendChild(createStepCard(
-    stepNumber, "Verification",
-    verifyHtml,
-    success ? "verify-success" : "verify-fail", delay
-  ));
-  highlightBox(MESSAGE_BOX_ORDER, "mfBox5");
+  state.alice = validated.alice;
+  state.bob = validated.bob;
+  lockStep1Inputs();
+  goToStep2();
 }
 
-// Clears every input field, error message, result card and diagram
-// highlight, back to the page's starting state. This is the click handler
-// for the "Clear / Reset" button. Does not return anything.
+function onLoadSampleClick() {
+  $("alice-p").value = "5";
+  $("alice-q").value = "11";
+  $("alice-e").value = "3";
+  $("bob-p").value = "7";
+  $("bob-q").value = "11";
+  $("bob-e").value = "7";
+}
+
 function resetLab() {
-  document.getElementById("inputP").value = "";
-  document.getElementById("inputQ").value = "";
-  document.getElementById("inputM").value = "";
-  document.getElementById("inputE").value = "";
+  state.currentStep = 1;
+  state.alice = null;
+  state.bob = null;
+  state.a2b = null;
+  state.b2a = null;
 
-  showFieldErrors({ p: "", q: "", m: "", e: "" });
+  unlockStep1Inputs();
+  var errorIds = ["alice-p-error", "alice-q-error", "alice-e-error", "bob-p-error", "bob-q-error", "bob-e-error"];
+  for (var i = 0; i < errorIds.length; i = i + 1) {
+    $(errorIds[i]).textContent = "";
+  }
 
-  document.getElementById("resultsArea").innerHTML = "";
-  resetDiagrams();
-
-  var progressTrack = document.getElementById("progressTrack");
-  progressTrack.hidden = true;
-  document.getElementById("progressFill").classList.remove("filled");
+  $("stepsArea").innerHTML = "";
+  updateProgressBar();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 
 // ==========================================================================
-// WIRE UP THE BUTTONS
+// STEP 2 / 3: KEY CARDS
 // ==========================================================================
 
-document.getElementById("generateBtn").addEventListener("click", generateRSA);
-document.getElementById("resetBtn").addEventListener("click", resetLab);
+function goToStep2() {
+  state.currentStep = 2;
+  updateProgressBar();
+  var body = buildKeysCardHtml("Alice", state.alice) +
+    "<button class='btn btn-primary step-next-btn'>Next ▶</button>";
+  var card = appendStepCard(2, "Alice's Keys", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep3);
+}
+
+function goToStep3() {
+  state.currentStep = 3;
+  updateProgressBar();
+  var body = buildKeysCardHtml("Bob", state.bob) +
+    "<button class='btn btn-primary step-next-btn'>Next ▶</button>";
+  var card = appendStepCard(3, "Bob's Keys", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep4);
+}
+
+
+// ==========================================================================
+// STEPS 4-7: ALICE -> BOB
+// ==========================================================================
+
+function goToStep4() {
+  state.currentStep = 4;
+  updateProgressBar();
+
+  var flowHtml = buildFlowDiagramHtml(
+    "Alice", "Bob",
+    "Bob's PUBLIC key", "(" + state.bob.e + ", " + state.bob.n + ")",
+    "Bob's PRIVATE key", "(" + state.bob.d + ", " + state.bob.n + ")"
+  );
+  var body = "<p><strong>Alice sends a message to Bob.</strong> Alice must encrypt " +
+    "it with <em>Bob's public key</em>, not her own -- only Bob's matching " +
+    "private key can undo that.</p>" + flowHtml +
+    "<div class='field-group'>" +
+    "<label for='a2b-message'>Alice's message (A–Z and spaces only)</label>" +
+    "<input type='text' id='a2b-message' value='HELLO BOB'>" +
+    "<span class='field-error' id='a2b-message-error'></span>" +
+    "</div>" +
+    "<button class='btn btn-primary' id='a2bEncryptBtn'>Encrypt Message ▶</button>";
+
+  var card = appendStepCard(4, "Alice → Bob", body);
+  card.querySelector("#a2bEncryptBtn").addEventListener("click", onA2BEncryptClick);
+}
+
+function onA2BEncryptClick() {
+  var rawText = $("a2b-message").value;
+  var checked = validateMessageCharacters(rawText);
+  if (!checked.ok) {
+    $("a2b-message-error").textContent =
+      "\"" + checked.errorChar + "\" is not allowed — only A–Z and spaces.";
+    return;
+  }
+  var fitsCheck = checkMessageFitsModulus(checked.cleaned, state.bob.n);
+  if (!fitsCheck.ok) {
+    $("a2b-message-error").textContent =
+      "'" + fitsCheck.offendingChar + "' maps to " + fitsCheck.offendingValue +
+      ", which is not smaller than n = " + state.bob.n +
+      ". The modulus is too small — use larger classroom primes for Bob.";
+    return;
+  }
+  $("a2b-message-error").textContent = "";
+
+  var entries = rsaEncrypt(checked.cleaned, state.bob.e, state.bob.n);
+  state.a2b = { message: checked.cleaned, entries: entries };
+  goToStep5();
+}
+
+function goToStep5() {
+  state.currentStep = 5;
+  updateProgressBar();
+  var body = "<p>Each letter of \"" + state.a2b.message + "\" is converted to a number, " +
+    "then raised to Bob's public exponent, modulo Bob's n:</p>" +
+    buildEncryptTableHtml(state.a2b.entries, state.bob.e, state.bob.n) +
+    "<button class='btn btn-primary step-next-btn'>Send Ciphertext ▶</button>";
+  var card = appendStepCard(5, "Encrypt Alice's Message", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep6);
+}
+
+function goToStep6() {
+  state.currentStep = 6;
+  updateProgressBar();
+  var body = buildCommAreaHtml("Alice", "\u{1F469}", "alice", "Bob", "\u{1F9D1}", "bob") +
+    "<button class='btn btn-primary step-next-btn' hidden>Next ▶</button>";
+  var card = appendStepCard(6, "Send Ciphertext", body);
+  var nextBtn = card.querySelector(".step-next-btn");
+  nextBtn.addEventListener("click", goToStep7);
+  animatePacket(card, false, function () {
+    nextBtn.hidden = false;
+  });
+}
+
+function goToStep7() {
+  state.currentStep = 7;
+  updateProgressBar();
+  var results = rsaDecrypt(state.a2b.entries, state.bob.d, state.bob.n);
+  var decryptedText = entriesToText(results, "decryptedChar");
+  state.a2b.decrypted = decryptedText;
+
+  var body = "<p>Bob uses his own private key (d = " + state.bob.d + ", n = " + state.bob.n +
+    ") to reverse the encryption, one character at a time:</p>" +
+    buildDecryptTableHtml(results, state.bob.d, state.bob.n) +
+    buildVerifyBoxHtml(state.a2b.message, decryptedText) +
+    "<button class='btn btn-primary step-next-btn'>Next ▶</button>";
+  var card = appendStepCard(7, "Bob Decrypts", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep8);
+}
+
+
+// ==========================================================================
+// STEPS 8-11: BOB -> ALICE
+// ==========================================================================
+
+function goToStep8() {
+  state.currentStep = 8;
+  updateProgressBar();
+
+  var flowHtml = buildFlowDiagramHtml(
+    "Bob", "Alice",
+    "Alice's PUBLIC key", "(" + state.alice.e + ", " + state.alice.n + ")",
+    "Alice's PRIVATE key", "(" + state.alice.d + ", " + state.alice.n + ")"
+  );
+  var body = "<p><strong>Bob replies to Alice.</strong> This time Bob encrypts with " +
+    "<em>Alice's public key</em> -- only Alice's private key can undo it.</p>" + flowHtml +
+    "<div class='field-group'>" +
+    "<label for='b2a-message'>Bob's message (A–Z and spaces only)</label>" +
+    "<input type='text' id='b2a-message' value='HOW ARE YOU'>" +
+    "<span class='field-error' id='b2a-message-error'></span>" +
+    "</div>" +
+    "<button class='btn btn-primary' id='b2aEncryptBtn'>Encrypt Message ▶</button>";
+
+  var card = appendStepCard(8, "Bob → Alice", body);
+  card.querySelector("#b2aEncryptBtn").addEventListener("click", onB2AEncryptClick);
+}
+
+function onB2AEncryptClick() {
+  var rawText = $("b2a-message").value;
+  var checked = validateMessageCharacters(rawText);
+  if (!checked.ok) {
+    $("b2a-message-error").textContent =
+      "\"" + checked.errorChar + "\" is not allowed — only A–Z and spaces.";
+    return;
+  }
+  var fitsCheck = checkMessageFitsModulus(checked.cleaned, state.alice.n);
+  if (!fitsCheck.ok) {
+    $("b2a-message-error").textContent =
+      "'" + fitsCheck.offendingChar + "' maps to " + fitsCheck.offendingValue +
+      ", which is not smaller than n = " + state.alice.n +
+      ". The modulus is too small — use larger classroom primes for Alice.";
+    return;
+  }
+  $("b2a-message-error").textContent = "";
+
+  var entries = rsaEncrypt(checked.cleaned, state.alice.e, state.alice.n);
+  state.b2a = { message: checked.cleaned, entries: entries };
+  goToStep9();
+}
+
+function goToStep9() {
+  state.currentStep = 9;
+  updateProgressBar();
+  var body = "<p>Each letter of \"" + state.b2a.message + "\" is converted to a number, " +
+    "then raised to Alice's public exponent, modulo Alice's n:</p>" +
+    buildEncryptTableHtml(state.b2a.entries, state.alice.e, state.alice.n) +
+    "<button class='btn btn-primary step-next-btn'>Send Ciphertext ▶</button>";
+  var card = appendStepCard(9, "Encrypt Bob's Message", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep10);
+}
+
+function goToStep10() {
+  state.currentStep = 10;
+  updateProgressBar();
+  var body = buildCommAreaHtml("Bob", "\u{1F9D1}", "bob", "Alice", "\u{1F469}", "alice") +
+    "<button class='btn btn-primary step-next-btn' hidden>Next ▶</button>";
+  var card = appendStepCard(10, "Send Ciphertext", body);
+  var nextBtn = card.querySelector(".step-next-btn");
+  nextBtn.addEventListener("click", goToStep11);
+  animatePacket(card, true, function () {
+    nextBtn.hidden = false;
+  });
+}
+
+function goToStep11() {
+  state.currentStep = 11;
+  updateProgressBar();
+  var results = rsaDecrypt(state.b2a.entries, state.alice.d, state.alice.n);
+  var decryptedText = entriesToText(results, "decryptedChar");
+  state.b2a.decrypted = decryptedText;
+
+  var body = "<p>Alice uses her own private key (d = " + state.alice.d + ", n = " + state.alice.n +
+    ") to reverse the encryption, one character at a time:</p>" +
+    buildDecryptTableHtml(results, state.alice.d, state.alice.n) +
+    buildVerifyBoxHtml(state.b2a.message, decryptedText) +
+    "<button class='btn btn-primary step-next-btn'>Next ▶</button>";
+  var card = appendStepCard(11, "Alice Decrypts", body);
+  card.querySelector(".step-next-btn").addEventListener("click", goToStep12);
+}
+
+
+// ==========================================================================
+// STEP 12: FINAL VERIFICATION SUMMARY
+// ==========================================================================
+
+function goToStep12() {
+  state.currentStep = 12;
+  updateProgressBar();
+
+  var body = "<h4>Alice → Bob</h4>" +
+    buildVerifyBoxHtml(state.a2b.message, state.a2b.decrypted) +
+    "<h4>Bob → Alice</h4>" +
+    buildVerifyBoxHtml(state.b2a.message, state.b2a.decrypted) +
+    "<p>Experiment complete. Click <strong>Reset</strong> above to try different primes.</p>";
+
+  appendStepCard(12, "Verification", body);
+}
+
+
+// ==========================================================================
+// WIRE UP THE STEP 1 BUTTONS
+// ==========================================================================
+
+$("generateKeysBtn").addEventListener("click", onGenerateKeysClick);
+$("resetBtn").addEventListener("click", resetLab);
+$("loadSampleBtn").addEventListener("click", onLoadSampleClick);
+
+updateProgressBar();

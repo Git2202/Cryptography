@@ -1,8 +1,13 @@
-# RSA Virtual Lab
+# RSA Virtual Lab — Alice & Bob
 
-A three-file, offline, interactive web page that generates a real RSA key
-pair from two primes you provide, and shows every calculation — not just
-the final answer — as a step-by-step result card.
+A three-file, offline, interactive web page: "RSA Algorithm — Interactive
+Secure Communication between Alice and Bob." Alice and Bob each type in
+their own two primes and public exponent; the page computes real keys for
+both of them and then walks through, one gated step at a time, an actual
+message going from Alice to Bob (encrypted with Bob's public key, decrypted
+with Bob's private key) and a reply going from Bob back to Alice (encrypted
+with Alice's public key, decrypted with Alice's private key) — including an
+animated packet that visibly travels between them.
 
 ## 1. Creating these files in VS Code
 
@@ -30,55 +35,80 @@ No server, no build step, no `npm install`, no Python. Just open
 
 Any modern browser (Chrome, Edge, Firefox, Safari) can run it, since it
 only uses standard HTML, CSS and JavaScript already built into the
-browser — nothing needs to be downloaded.
+browser — nothing needs to be downloaded. A "Load these values into the
+form" button under the Sample Experiment panel fills in the fields below
+for you, or type your own primes.
 
 ## 3. Sample test case
 
-Enter these values in the input panel:
+Click **"Load these values into the form"** (or type these in yourself),
+then **Generate Keys ▶**:
 
-| field | value |
-|---|---|
-| Prime p | 5 |
-| Prime q | 11 |
-| Message M | 2 |
-| Public exponent e | *(leave blank)* |
+| field | Alice | Bob |
+|---|---|---|
+| Prime p | 5 | 7 |
+| Prime q | 11 | 11 |
+| Public exponent e | 3 | 7 |
 
-Then click **Generate RSA**.
+Alice's message defaults to "HELLO BOB"; Bob's reply defaults to
+"HOW ARE YOU". Both can be left as they are or changed to any text using
+only A–Z and spaces.
 
 ## 4. Expected output for the sample case
 
-Computed by actually running the page's own code (`findPublicExponent`,
-`modInverse`, `modPow`) and confirmed in the browser before writing it down
-here — not assumed:
+Computed by actually running the page's own code and confirmed in the
+browser before writing it down here — not assumed:
 
-| quantity | value |
-|---|---|
-| n = p × q | 5 × 11 = **55** |
-| φ(n) = (p−1)(q−1) | 4 × 10 = **40** |
-| e candidates tried | e=2 → gcd(2,40)=2 (rejected); e=3 → gcd(3,40)=1 (**accepted**) |
-| Chosen e | **3** |
-| d (from the extended Euclidean algorithm) | **27** — check: 27 × 3 mod 40 = 1 |
-| Public Key | (e, n) = **(3, 55)** |
-| Private Key | (d, n) = **(27, 55)** |
-| Encrypt: C = M^e mod n | 2³ mod 55 = **8** |
-| Decrypt: M = C^d mod n | 8²⁷ mod 55 = **2** |
-| Verification | ✅ **Successful** — 2 = 2 |
+| quantity | Alice | Bob |
+|---|---|---|
+| n = p × q | 5 × 11 = **55** | 7 × 11 = **77** |
+| φ(n) = (p−1)(q−1) | 4 × 10 = **40** | 6 × 10 = **60** |
+| d (found by trying d = 1, 2, 3, …) | **27** (27 × 3 mod 40 = 1) | **43** (43 × 7 mod 60 = 1) |
+| Public Key PU | (3, 55) | (7, 77) |
+| Private Key PR | (27, 55) | (43, 77) |
 
-## 5. How this satisfies the assignment requirement
+With the default messages: **"HELLO BOB"** encrypted with Bob's public key
+(7, 77), sent, and decrypted with Bob's private key (43, 77) comes back as
+**"HELLO BOB"** — ✅ MESSAGE SUCCESSFULLY RECOVERED. **"HOW ARE YOU"**
+encrypted with Alice's public key (3, 55), sent, and decrypted with Alice's
+private key (27, 55) comes back as **"HOW ARE YOU"** — ✅ MESSAGE
+SUCCESSFULLY RECOVERED.
 
-The assignment asks for "a web-based virtual laboratory page that allows
-users to provide inputs and interactively visualize the experiment." This
-page does exactly that: the user supplies the actual experimental
-parameters (two primes and a message, with an optional public exponent),
-and every stage of the RSA "experiment" — validating the primes, computing
-`n` and `φ(n)`, searching for a valid public exponent and showing which
-candidates were tried and rejected, working out the private exponent step
-by step, forming the public and private keys, and finally encrypting and
-decrypting the message to verify it round-trips correctly — is rendered as
-its own visible, numbered result, alongside two flow diagrams that
-highlight which stage of the process is currently being shown. Nothing is
-precomputed or hard-coded to one example: changing the inputs and clicking
-"Generate RSA" again re-runs the entire calculation from scratch and
-produces a genuinely different key pair, so the "interactively visualize"
-requirement is met by the page actually doing the cryptographic work in
-front of the user, not by animating a canned result.
+(The fixed "Sample Experiment" reference panel at the top of the page
+shows a third, even smaller worked example — p=5, q=11, e=3, M=7 → C=13 →
+back to 7 — for checking the single-character arithmetic by hand.)
+
+## 5. How Alice → Bob and Bob → Alice work
+
+Both directions use exactly the same six-line algorithm; only *whose* keys
+are used, and in which role, changes:
+
+```
+n  = p × q
+φ(n) = (p − 1)(q − 1)
+choose e with 1 < e < φ(n) and gcd(e, φ(n)) = 1        (typed in, not generated)
+find d with (e × d) mod φ(n) = 1                        (found by trying d = 1, 2, 3, ...)
+Public key PU = (e, n)      Private key PR = (d, n)
+C = M^e mod n                M = C^d mod n
+```
+
+**Alice → Bob**: Alice wants to send Bob a message only Bob can read. She
+looks up Bob's *public* key `PU_Bob = (e_Bob, n_Bob)` — public keys are
+meant to be shared, so she doesn't need anything secret from Bob to do
+this — and computes `C = M^e_Bob mod n_Bob` for every letter of her
+message. Only the ciphertext `C` ever crosses the wire. Bob is the only
+one who holds the matching *private* key `PR_Bob = (d_Bob, n_Bob)`, so only
+Bob can compute `M = C^d_Bob mod n_Bob` and recover the letters. Alice's
+own key pair is never used in this direction at all — a sender never
+encrypts with their own public key, because that would mean only *they*
+could decrypt it back.
+
+**Bob → Alice**: the same pattern, mirrored. Bob replies using *Alice's*
+public key `PU_Alice = (e_Alice, n_Alice)` to compute
+`C = M^e_Alice mod n_Alice`, sends `C`, and only Alice's private key
+`PR_Alice = (d_Alice, n_Alice)` can reverse it: `M = C^d_Alice mod n_Alice`.
+
+So across the whole exchange, four keys exist (Alice's public, Alice's
+private, Bob's public, Bob's private), but any single message only ever
+touches two of them: the *receiver's* public key to lock it, and that same
+receiver's private key to unlock it.
