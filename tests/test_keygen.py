@@ -8,8 +8,9 @@ from rsa import (
     NotPrimeError,
     PrimeTooSmallError,
 )
-from rsa.keygen import KeyPair, carmichael_lambda, generate_keypair, totient
-from rsa.mathutils import gcd
+from rsa.cipher import decrypt, encrypt
+from rsa.keygen import KeyPair, PrivateKey, carmichael_lambda, generate_keypair, totient
+from rsa.mathutils import gcd, modinv
 
 
 class TestTotientAndLambda(unittest.TestCase):
@@ -58,13 +59,34 @@ class TestGenerateKeypairKnownAnswer(unittest.TestCase):
         self.assertEqual(self.kp.d, 413)
 
     def test_d_phi_alternative_also_valid(self):
-        from rsa.mathutils import modinv
-
         d_phi = modinv(17, self.kp.phi)
         self.assertEqual(d_phi, 2753)
         # Both the lambda-based and phi-based private exponent must satisfy
         # e*d == 1 mod lambda(n) (that's the only congruence RSA needs).
         self.assertEqual((17 * d_phi) % self.kp.lam, 1)
+
+    # The virtual lab (RSA-Virtual-Lab/) computes d from phi(n), not
+    # lambda(n) like rsa/keygen.py does by default -- see report.md section 4
+    # for why that's a deliberate, independent design choice rather than a
+    # bug. This proves both choices of d are genuinely interchangeable: each
+    # satisfies its own congruence, and both decrypt one real ciphertext
+    # back to the original message.
+    def test_lambda_and_phi_based_d_both_decrypt_the_same_ciphertext(self):
+        d_lambda = self.kp.d  # generate_keypair's default: d = e^-1 mod lambda(n)
+        d_phi = modinv(self.kp.e, self.kp.phi)  # the lab's choice: d = e^-1 mod phi(n)
+
+        self.assertEqual((self.kp.e * d_lambda) % self.kp.lam, 1)
+        self.assertEqual((self.kp.e * d_phi) % self.kp.phi, 1)
+        self.assertNotEqual(d_lambda, d_phi)  # genuinely two different numbers
+
+        message = 65
+        ciphertext = encrypt(message, self.kp.public)
+
+        priv_lambda = PrivateKey(d=d_lambda, n=self.kp.n, p=self.kp.p, q=self.kp.q)
+        priv_phi = PrivateKey(d=d_phi, n=self.kp.n, p=self.kp.p, q=self.kp.q)
+
+        self.assertEqual(decrypt(ciphertext, priv_lambda), message)
+        self.assertEqual(decrypt(ciphertext, priv_phi), message)
 
     def test_public_and_private_key_views(self):
         self.assertEqual(self.kp.public.e, 17)

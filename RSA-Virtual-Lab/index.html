@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSA Cryptography Virtual Laboratory</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="lab-header">
+    <h1>RSA Cryptography Virtual Laboratory</h1>
+    <p>
+      RSA is a public-key encryption method: it uses two prime numbers to
+      build a public key (for locking a message) and a private key (for
+      unlocking it), so anyone can send a secret message but only the key
+      owner can read it. Enter two primes and a message below to generate
+      a real key pair and watch every calculation happen step by step.
+    </p>
+  </header>
+
+  <main>
+
+    <!-- ============================================================
+         INPUT PANEL
+         ============================================================ -->
+    <section class="input-panel">
+      <h2>Inputs</h2>
+
+      <div class="field-group">
+        <label for="inputP">Prime p</label>
+        <input type="text" id="inputP" inputmode="numeric" placeholder="e.g. 5">
+        <span class="field-error" id="errorP"></span>
+      </div>
+
+      <div class="field-group">
+        <label for="inputQ">Prime q</label>
+        <input type="text" id="inputQ" inputmode="numeric" placeholder="e.g. 11">
+        <span class="field-error" id="errorQ"></span>
+      </div>
+
+      <div class="field-group">
+        <label for="inputM">Message M (a whole number)</label>
+        <input type="text" id="inputM" inputmode="numeric" placeholder="e.g. 2">
+        <span class="field-error" id="errorM"></span>
+      </div>
+
+      <div class="field-group">
+        <label for="inputE">Public exponent e <span class="optional-tag">(optional — leave blank to auto-choose)</span></label>
+        <input type="text" id="inputE" inputmode="numeric" placeholder="auto">
+        <span class="field-error" id="errorE"></span>
+      </div>
+
+      <div class="button-row">
+        <button id="generateBtn" class="btn btn-primary">Generate RSA</button>
+        <button id="resetBtn" class="btn btn-secondary">Clear / Reset</button>
+      </div>
+
+      <div class="progress-track" id="progressTrack" hidden>
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FLOW DIAGRAM 1: KEY GENERATION
+         ============================================================ -->
+    <section class="flow-diagram">
+      <h2>Key Generation Flow</h2>
+      <div class="flow-row">
+        <div class="flow-box" id="kgBox1">p, q</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="kgBox2">n and &phi;(n)</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="kgBox3">choose e</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="kgBox4">calculate d</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="kgBox5">Public + Private Key</div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FLOW DIAGRAM 2: MESSAGE FLOW
+         ============================================================ -->
+    <section class="flow-diagram">
+      <h2>Message Flow</h2>
+      <div class="flow-row">
+        <div class="flow-box" id="mfBox1">Plaintext</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="mfBox2">Encrypt with Public Key</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="mfBox3">Ciphertext</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="mfBox4">Decrypt with Private Key</div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-box" id="mfBox5">Original Plaintext</div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         RESULT CARDS GO HERE, ADDED BY script.js
+         ============================================================ -->
+    <section class="results" id="resultsArea"></section>
+
+  </main>
+
+  <footer class="lab-footer">
+    RSA Cryptography Virtual Laboratory — a single offline page, no server, no external libraries.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

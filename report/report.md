@@ -140,8 +140,9 @@ choices of `d` are valid private exponents; the `λ(n)`-based one is simply
 the smaller, tighter one. The assignment's known-answer vector demonstrates
 both work: for `p=61, q=53, e=17`, `d = 413 (mod λ(n)=780)` and
 `d = 2753 (mod φ(n)=3120)` both correctly decrypt `c = 2790` back to `m = 65`
-(verified in [`tests/test_keygen.py`](../tests/test_keygen.py) and
-reproduced in the browser's self-test, Section 5).
+(verified in [`tests/test_keygen.py`](../tests/test_keygen.py); Section 4.5
+covers a second, related test proving both choices of `d` decrypt the same
+ciphertext, motivated by the virtual lab's own choice to use `φ(n)`).
 
 **Why textbooks usually teach φ(n) anyway:** Euler's theorem (needing only
 `φ(n)`) is typically covered before the more specialised Carmichael's
@@ -296,8 +297,8 @@ rsa/
   attack.py      factor_n, recover_d
 cli.py           command-line demo over all of the above
 tests/           one test module per rsa/ module, plus the known-answer vector
-tools/           run_experiments.py, which produced every number in Section 6
-virtual-lab/     index.html (Section 5) + NOTES.md
+tools/               run_experiments.py, which produced every number in Section 6
+RSA-Virtual-Lab/     index.html, style.css, script.js (Section 5) + README.md
 ```
 
 Each module depends only on the ones above it in this list (`cipher.py` and
@@ -343,7 +344,25 @@ calling code — and the tests — can distinguish *why* an input was
 rejected. Each such error case has a corresponding negative test in
 `tests/`.
 
-### 4.5 A deliberate deviation: Python 3.9 compatibility
+### 4.5 A second implementation of d: the virtual lab uses φ(n), not λ(n)
+
+The virtual laboratory (Section 5) computes the private exponent `d` as the
+inverse of `e` modulo `φ(n) = (p-1)(q-1)`, not modulo `λ(n)` like
+`rsa/keygen.py` does. This is a deliberate, independent choice for that
+rewrite, not an inconsistency to be fixed: Section 2.5 already established
+that both are mathematically valid private exponents, and the lab's brief
+specifically calls for `φ(n)` (the more commonly taught quantity) throughout
+its step cards. The practical consequence is that, given the same `p`, `q`
+and `e`, the lab and the Python package can compute two different values of
+`d` for the same key — both correct, since both satisfy `e·d ≡ 1 (mod λ(n))`
+(the `φ(n)`-based one satisfies it too, because `λ(n) | φ(n)`, Section 2.5).
+[`tests/test_keygen.py`](../tests/test_keygen.py)'s
+`test_lambda_and_phi_based_d_both_decrypt_the_same_ciphertext` proves this
+directly on the known-answer key: it computes `d` both ways, checks each
+against its own congruence, and confirms both independently decrypt one real
+ciphertext back to the original message.
+
+### 4.6 A deliberate deviation: Python 3.9 compatibility
 
 The assignment brief specifies Python 3.10+. The machine this project was
 built and tested on has only Python 3.9.6 installed, with no other
@@ -359,48 +378,88 @@ choice (see [`PLAN.md`](../PLAN.md)), not an oversight.
 
 ## 5. Virtual Laboratory Design
 
-`virtual-lab/index.html` is a single, self-contained HTML file (inline CSS
-and JavaScript, no external scripts, no build step) that opens directly by
-double-clicking it and works with no network connection. It reimplements
-RSA independently in JavaScript, using `BigInt` for every RSA-sized value,
-because the lab cannot import the Python package — [`NOTES.md`](../virtual-lab/NOTES.md)
-maps each JavaScript function back to the Python function it mirrors.
+`RSA-Virtual-Lab/` is a three-file, self-contained web page — `index.html`,
+`style.css`, `script.js`, no external scripts, no CDN links, no build step
+— that opens directly by double-clicking `index.html` and works with no
+network connection. Like the assignment's other JavaScript deliverables, it
+reimplements RSA independently rather than calling into the Python package,
+since a browser cannot run Python; unlike the version described in an
+earlier draft of this report, it deliberately favours plain, explicit code
+a second-year student can read line by line over compactness, and it uses
+`φ(n)` throughout (Section 4.5) rather than `λ(n)`.
 
-The lab is five panels, navigable both by a top stepper bar and by
-prev/next buttons, matching the assignment's five required screens:
+### 5.1 Layout
 
-1. **Prime Selection** — a clickable Sieve-of-Eratosthenes grid (default
-   limit 200, capped at 2000 so it always renders instantly), with each
-   composite cell labelled by the smallest prime that eliminated it. This
-   is a direct visualisation of Section 3's sieve. Clicking two different
-   primes (or pressing "random pair") sets `p` and `q`; clicking the same
-   prime twice is rejected with an inline message, never `alert()`.
-2. **Key Generation Walkthrough** — six step-cards, one per algorithm
-   stage from Section 3.1: `n = p·q`, `φ(n)`, `λ(n)`, the candidate-`e`
-   table (with `gcd(e, λ(n))` shown for every candidate tried, exactly
-   like `_choose_e`'s trace), the full extended-Euclid table row by row
-   (Section 3.2), and the finished key pair.
-3. **Encrypt / Decrypt** — accepts either an integer message or short text
-   (block-split the same way `text_to_blocks` does); encryption and
-   decryption both show the full square-and-multiply table from Section
-   3.3, one row per exponent bit, with a final "matches the original"
-   confirmation when decrypting something just encrypted.
-4. **Attack** — "Break this key" runs trial division against the current
-   public `n`, live, in the browser, showing the attempt count and elapsed
-   time, recovers `d` via `carmichael_lambda` + `modinv`, and decrypts the
-   last ciphertext using only the recovered key. A second button runs a
-   small live factoring-time-vs-bit-length benchmark in the browser itself
-   (Section 6.3 reports the equivalent measured in Python).
-5. **Self-Test** — reproduces the assignment's known-answer vector
-   (`p=61, q=53, e=17 → n=3233, φ=3120, λ=780, d=413, encrypt(65)=2790,
-   decrypt(2790)=65`) plus several random small-key round trips, entirely
-   in the browser, and reports pass/fail for each — proof that the
-   JavaScript agrees with the Python implementation.
+A header band states what RSA is in two or three sentences, followed by an
+input panel (`p`, `q`, a message `M`, and an optional public exponent
+override `e`), two flow diagrams built from plain HTML boxes and CSS arrow
+characters (no images, no SVG) — one for key generation
+(`p, q → n and φ(n) → choose e → calculate d → Public + Private Key`) and
+one for the message path
+(`Plaintext → Encrypt with Public Key → Ciphertext → Decrypt with Private
+Key → Original Plaintext`) — and finally the numbered result cards that
+appear once "Generate RSA" is clicked. A CSS media query switches the page
+to a single column with full-width fields and a stacked, rotated-arrow flow
+diagram below 640px, and widens the main content column above 1000px, so
+the same page is usable on a phone or a projector.
 
-Every number is shown in monospace, alongside both its mathematical symbol
-(`n`, `φ(n)`, `λ(n)`, `e`, `d`, `m`, `c`) and a plain-English label, and all
-validation is inline (a coloured message box), never a blocking `alert()`
-dialog, per the assignment's usability requirements.
+### 5.2 The ten result cards
+
+Clicking "Generate RSA" builds ten cards in order, each fading and sliding
+in slightly after the last (a small CSS `animation-delay` per card, plus a
+decorative progress bar), and highlights the matching box in whichever flow
+diagram applies as it goes:
+
+1. **Validate p and q** — confirms both are prime and different (real
+   rejection happens earlier, as inline field errors, before any card is
+   shown at all — see Section 5.3).
+2. **n = p × q**, with the real numbers substituted directly under the
+   symbolic formula.
+3. **φ(n) = (p−1)(q−1)**, likewise.
+4. **Choose e** — every candidate `e` tried (starting from 2, in order) is
+   listed with its `gcd(e, φ(n))` and whether it was accepted, exactly
+   mirroring how `findPublicExponent` in `script.js` works, so the table
+   *is* the function's trace, not a separate explanation of it.
+5. **Find d** — the extended Euclidean algorithm's working, as a small
+   table of `(r, quotient, s)` rows from `modInverse`, ending in `d` and a
+   visible check that `d × e mod φ(n) = 1`.
+6. **Public Key**, in its own blue-bordered card.
+7. **Private Key**, in its own purple-bordered card — a different colour
+   from the public key card on purpose, so the two are never confused at a
+   glance.
+8. **Encrypt**: `C = M^e mod n`, symbolic and substituted.
+9. **Decrypt**: `M = C^d mod n`, symbolic and substituted.
+10. **Verification** — green "Verification Successful" if the decrypted
+    value equals the original `M`, red failure text otherwise (this should
+    never fire if the arithmetic above it is correct, but the check runs
+    for real on every click rather than being assumed).
+
+### 5.3 Validation and error handling
+
+Every rejection — a non-prime or non-integer `p`/`q`, `p = q`, a `p`/`q`
+pair small enough that `φ(n) < 3` (leaving no room for any valid `e` at
+all), a non-integer or out-of-range `M`, `M ≥ n`, or an invalid custom `e`
+— is shown as a message next to the specific field it concerns, and stops
+generation before any result card is drawn. No `alert()` is used anywhere
+on the page.
+
+### 5.4 Why BigInt appears in exactly one function
+
+`modPow` is the only function in `script.js` that uses JavaScript's
+`BigInt` type; every other function (`isPrime`, `gcd`, `modInverse`,
+`findPublicExponent`, and all of the validation and card-building code)
+uses ordinary numbers, because the primes this lab is designed for stay
+small enough that ordinary numbers represent them exactly. Modular
+exponentiation is different: while squaring the base and reducing it
+modulo `n` at every step of `modPow`'s square-and-multiply loop keeps the
+final answer small, the intermediate values before each reduction can
+exceed what an ordinary JavaScript number can hold exactly (`2^53`), and
+`Math.pow` computes in floating point regardless, which would silently
+round rather than error. `modPow` converts its arguments to `BigInt` at the
+very start and converts its answer back to an ordinary number at the very
+end, so this is invisible to every other function that calls it —
+consistent with the general JavaScript rule that `BigInt` and ordinary
+numbers can never appear in the same arithmetic expression.
 
 ---
 
@@ -415,7 +474,7 @@ instructs.
 
 ### 6.1 Test suite results
 
-The full suite (`python -m unittest discover -s tests`) passes: **77
+The full suite (`python -m unittest discover -s tests`) passes: **78
 tests, 0 failures, 0 errors**. Raw output is saved at
 [`report/results/test_output.txt`](results/test_output.txt); an excerpt:
 
@@ -426,7 +485,7 @@ test_egcd_steps_every_row_satisfies_identity (test_mathutils.TestEgcd) ... ok
 test_known_carmichael_number_is_not_prime (test_primes.TestIsPrimeMillerRabin) ... ok
 ...
 ----------------------------------------------------------------------
-Ran 77 tests in 0.107s
+Ran 78 tests in 0.355s
 
 OK
 ```
@@ -437,7 +496,7 @@ Per-module breakdown (from [`report/results/test_summary.md`](results/test_summa
 |---|---|---|---|
 | test_attack | 6 | 0 | 0 |
 | test_cipher | 14 | 0 | 0 |
-| test_keygen | 19 | 0 | 0 |
+| test_keygen | 20 | 0 | 0 |
 | test_mathutils | 23 | 0 | 0 |
 | test_primes | 15 | 0 | 0 |
 
@@ -641,10 +700,10 @@ padding scheme — which has several weaknesses independent of key size:
 This project implements every layer of textbook RSA — modular arithmetic,
 primality testing, key generation, encryption/decryption (plain and CRT),
 and a working factoring attack — from the Python standard library alone,
-verified against the assignment's known-answer vector and a 77-test
-automated suite, and made interactively explorable through a single
-offline HTML file that independently reproduces the same mathematics in
-JavaScript. The experiments in Section 6 turn the assignment's central
+verified against the assignment's known-answer vector and a 78-test
+automated suite, and made interactively explorable through an offline,
+three-file web page that independently reproduces the same mathematics in
+plain JavaScript. The experiments in Section 6 turn the assignment's central
 claim — "small primes are insecure" — into a directly measured result
 rather than an assertion: an attacker factors a 48-bit modulus in 719 ms
 using nothing more sophisticated than trial division, with attempt counts

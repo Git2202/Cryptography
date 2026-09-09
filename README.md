@@ -22,12 +22,14 @@ rsa/                  the implementation (Python 3.9+, standard library only)
   cipher.py             encrypt, decrypt, decrypt_crt, text_to_blocks, blocks_to_text
   attack.py             factor_n, recover_d
 cli.py                 command-line demo over the whole package
-tests/                 unittest suite, one module per rsa/ module (77 tests)
+tests/                 unittest suite, one module per rsa/ module (78 tests)
 tools/
   run_experiments.py    regenerates every number quoted in report/report.md §6
-virtual-lab/
-  index.html             self-contained offline RSA lab (open by double-click)
-  NOTES.md               maps every lab JS function to its Python counterpart
+RSA-Virtual-Lab/
+  index.html             the lab page (open by double-click)
+  style.css              styling, incl. the responsive/mobile rules
+  script.js              plain-JS RSA implementation driving the page
+  README.md              how to run it, plus a worked sample case
 report/
   report.md              the technical report (10 sections)
   results/                raw test/experiment output the report quotes
@@ -41,11 +43,13 @@ PLAN.md                 working plan, assumptions, and step order
 anywhere in `rsa/`, `tests/`, `cli.py`, or `tools/run_experiments.py`. (The
 assignment brief targets 3.10+; this project was built and tested on 3.9.6,
 the only interpreter available on the build machine, using only syntax that
-also runs unmodified on 3.10+ — see PLAN.md and report.md §4.5 for why.)
+also runs unmodified on 3.10+ — see PLAN.md and report.md §4.6 for why.)
 
-`virtual-lab/index.html` needs nothing but a modern browser (it uses
-`BigInt`, supported by every current browser) — no Python, no server, no
-internet connection.
+`RSA-Virtual-Lab/index.html` needs nothing but a modern browser — no
+Python, no server, no internet connection. (Unlike the Python side, the lab
+uses plain JavaScript numbers for almost everything, and `BigInt`, supported
+by every current browser, only where exact large-integer arithmetic is
+required — see `RSA-Virtual-Lab/README.md`.)
 
 ## Running the tests
 
@@ -56,7 +60,7 @@ Python itself:
 python -m unittest discover -s tests -v
 ```
 
-Expect `Ran 77 tests ... OK`. Raw output from the last full run is saved at
+Expect `Ran 78 tests ... OK`. Raw output from the last full run is saved at
 [report/results/test_output.txt](report/results/test_output.txt).
 
 ## CLI usage
@@ -91,12 +95,14 @@ subcommand.
 
 ## Opening the virtual laboratory
 
-Double-click [virtual-lab/index.html](virtual-lab/index.html), or open it
-via `File > Open` in any modern browser. No server, build step, or internet
-connection is needed — everything, including the "Self-Test" panel, runs
-entirely client-side. Start on panel 1 (pick two primes, or press "🎲
-Random prime pair"), then step forward through key generation,
-encryption/decryption, the attack panel, and finally the self-test.
+Double-click [RSA-Virtual-Lab/index.html](RSA-Virtual-Lab/index.html), or
+open it via `File > Open` in any modern browser. No server, build step, or
+internet connection is needed — `style.css` and `script.js` load as plain
+sibling files next to `index.html`, so keep all three files together in the
+same folder. Enter two primes, a message, and (optionally) a public
+exponent, then click "Generate RSA" to see every step worked out with real
+numbers. See [RSA-Virtual-Lab/README.md](RSA-Virtual-Lab/README.md) for a
+worked sample case and more detail.
 
 ## Regenerating the report data
 

@@ -105,3 +105,19 @@ Plus a top-level `README.md` tying it all together.
 
 I'll work through these one at a time, running tests after each change before
 moving on.
+
+## Addendum: the virtual lab was rebuilt
+
+Steps 11 and 14 above describe the *original* virtual lab
+(`virtual-lab/index.html`, a single self-contained file with BigInt
+everywhere and five panels including an attack panel and a self-test
+panel). A later, separate spec replaced it entirely with a plainer,
+three-file lab aimed at second-year-student readability
+(`RSA-Virtual-Lab/index.html` + `style.css` + `script.js`, using `φ(n)`
+instead of `λ(n)`, `BigInt` only inside `modPow`, and a ten-card
+Generate/Reset flow instead of five panels). `virtual-lab/` was deleted
+once the replacement was verified working. See
+[`RSA-Virtual-Lab/README.md`](RSA-Virtual-Lab/README.md) and
+[`report/report.md`](report/report.md) section 5 for the current design;
+the steps above are kept as an accurate record of what was originally
+built, not updated to match.

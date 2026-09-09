@@ -20,6 +20,7 @@ test_round_trip_short_ascii (test_cipher.TestTextBlocks) ... ok
 test_round_trip_through_actual_encryption (test_cipher.TestTextBlocks) ... ok
 test_d_matches_lambda_based_value (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
 test_d_phi_alternative_also_valid (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
+test_lambda_and_phi_based_d_both_decrypt_the_same_ciphertext (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
 test_n_phi_lambda (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
 test_public_and_private_key_views (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
 test_trace_covers_every_stage (test_keygen.TestGenerateKeypairKnownAnswer) ... ok
@@ -77,6 +78,6 @@ test_rejects_non_int (test_primes.TestSieve) ... ok
 test_small_known_primes (test_primes.TestSieve) ... ok
 
 ----------------------------------------------------------------------
-Ran 77 tests in 0.107s
+Ran 78 tests in 0.355s
 
 OK
