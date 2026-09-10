@@ -3,132 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RSA Virtual Laboratory — Alice &amp; Bob</title>
+<title>RSA messenger</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <header class="lab-header">
-    <h1>RSA Virtual Laboratory</h1>
-    <p>
-      RSA Algorithm — Interactive Secure Communication between Alice and Bob.
-      Alice and Bob each generate their own RSA key pair from primes you
-      choose. Whenever one of them sends a message, it is scrambled with the
-      <strong>receiver's public key</strong> and can only be unscrambled with
-      the <strong>receiver's private key</strong> — so only the intended
-      reader can ever read it, even though the scrambling method itself is
-      public knowledge.
-    </p>
+  <header class="app-header">
+    <h1>RSA messenger</h1>
+    <p>Type as either party. Every step of the maths stays on screen.</p>
   </header>
 
-  <main>
+  <main class="app-grid">
 
     <!-- ============================================================
-         SAMPLE EXPERIMENT (fixed reference, not editable)
+         LEFT COLUMN: ALICE
          ============================================================ -->
-    <section class="card sample-panel">
-      <h2>Sample Experiment (fixed reference)</h2>
-      <p>This worked example never changes, however you fill in the form
-         below — it's here so you can check your own results against it.</p>
-      <div class="sample-grid">
-        <div>p = <b>5</b>, q = <b>11</b>, e = <b>3</b></div>
-        <div>n = 5 &times; 11 = <b>55</b></div>
-        <div>&phi;(n) = (5&minus;1)(11&minus;1) = <b>40</b></div>
-        <div>d = <b>27</b> (27 &times; 3 mod 40 = 1)</div>
-        <div>Public key PU = <b>(3, 55)</b></div>
-        <div>Private key PR = <b>(27, 55)</b></div>
-        <div class="sample-wide">M = 7 &rarr; C = 7&sup3; mod 55 = 343 mod 55 = <b>13</b></div>
-        <div class="sample-wide">Decrypt: 13&sup2;&#8311; mod 55 = <b>7</b> &#10003;</div>
+    <section class="party-panel alice-panel" id="alicePanel">
+      <div class="party-header">
+        <div class="avatar alice-avatar">A</div>
+        <div class="party-name">Alice</div>
+        <div class="party-role">party 1</div>
       </div>
-      <button class="btn btn-secondary" id="loadSampleBtn">Load these values into the form</button>
-    </section>
 
-    <!-- ============================================================
-         CHARACTER MAPPING LEGEND
-         ============================================================ -->
-    <section class="card mapping-legend">
-      <h2>Character mapping</h2>
-      <p>Every letter is converted to a number before it can be encrypted:
-         <span class="mono">A = 0, B = 1, C = 2, &hellip; Z = 25</span>.
-         A space is left exactly as it is and passed straight through,
-         unencrypted — it never becomes a number. This letter-by-letter
-         mapping is a <strong>teaching visualisation</strong>, not how
-         production RSA encodes real messages.</p>
-    </section>
-
-    <!-- ============================================================
-         STEP 1: INPUT PANEL (always visible)
-         ============================================================ -->
-    <section class="card input-panel" id="step1Panel">
-      <h2><span class="step-badge">Step 1</span> Enter Parameters</h2>
-      <p>Alice and Bob each pick their own two primes and public exponent.
-         Nothing here is generated for you.</p>
-
-      <div class="people-grid">
-        <div class="person-fields alice-fields">
-          <h3><span class="avatar">&#128105;</span> Alice</h3>
-          <div class="field-group">
-            <label for="alice-p">Prime p</label>
-            <input type="text" id="alice-p" inputmode="numeric" placeholder="e.g. 5">
-            <span class="field-error" id="alice-p-error"></span>
-          </div>
-          <div class="field-group">
-            <label for="alice-q">Prime q</label>
-            <input type="text" id="alice-q" inputmode="numeric" placeholder="e.g. 11">
-            <span class="field-error" id="alice-q-error"></span>
-          </div>
-          <div class="field-group">
-            <label for="alice-e">Public exponent e</label>
-            <input type="text" id="alice-e" inputmode="numeric" placeholder="e.g. 3">
-            <span class="field-error" id="alice-e-error"></span>
-          </div>
+      <div class="party-inputs">
+        <div class="field-group">
+          <label for="alice-p">p</label>
+          <input type="text" id="alice-p" inputmode="numeric" value="5">
         </div>
-
-        <div class="person-fields bob-fields">
-          <h3><span class="avatar">&#129489;</span> Bob</h3>
-          <div class="field-group">
-            <label for="bob-p">Prime p</label>
-            <input type="text" id="bob-p" inputmode="numeric" placeholder="e.g. 7">
-            <span class="field-error" id="bob-p-error"></span>
-          </div>
-          <div class="field-group">
-            <label for="bob-q">Prime q</label>
-            <input type="text" id="bob-q" inputmode="numeric" placeholder="e.g. 11">
-            <span class="field-error" id="bob-q-error"></span>
-          </div>
-          <div class="field-group">
-            <label for="bob-e">Public exponent e</label>
-            <input type="text" id="bob-e" inputmode="numeric" placeholder="e.g. 7">
-            <span class="field-error" id="bob-e-error"></span>
-          </div>
+        <div class="field-group">
+          <label for="alice-q">q</label>
+          <input type="text" id="alice-q" inputmode="numeric" value="11">
+        </div>
+        <div class="field-group">
+          <label for="alice-e">e</label>
+          <input type="text" id="alice-e" inputmode="numeric" value="3">
         </div>
       </div>
+      <div class="field-error" id="alice-p-error"></div>
+      <div class="field-error" id="alice-q-error"></div>
+      <div class="field-error" id="alice-e-error"></div>
+      <div class="party-error" id="alice-party-error"></div>
 
-      <div class="button-row">
-        <button class="btn btn-primary" id="generateKeysBtn">Generate Keys &#9654;</button>
-        <button class="btn btn-secondary" id="resetBtn">Reset</button>
+      <div class="working-block mono" id="alice-working"></div>
+
+      <div class="key-rows" id="alice-keys"></div>
+
+      <div class="encrypting-box">
+        <div class="encrypting-title">Encrypting for Bob</div>
+        <div class="encrypting-body mono" id="alice-encrypting-preview">Type a message below to preview encryption.</div>
+        <div class="encrypting-note">One block per letter, using Bob's e and n.</div>
+      </div>
+
+      <div class="activity-box">
+        <div class="activity-title">Activity</div>
+        <ul class="activity-log" id="alice-activity"></ul>
       </div>
     </section>
 
     <!-- ============================================================
-         PROGRESS BAR
+         CENTRE COLUMN: CONVERSATION
          ============================================================ -->
-    <section class="progress-panel">
-      <div class="progress-track">
-        <div class="progress-fill" id="progressFill"></div>
+    <section class="conversation-panel">
+      <div class="conversation-header">
+        <h2>Conversation</h2>
+        <label class="show-working-toggle">
+          <input type="checkbox" id="showWorkingToggle" checked>
+          show working
+        </label>
+        <button class="clear-btn" id="clearBtn">clear</button>
       </div>
-      <div class="progress-label" id="progressLabel">Step 1 of 12 — Enter Parameters</div>
+      <div class="conversation-messages" id="conversationMessages">
+        <p class="conversation-empty" id="conversationEmpty">No messages yet — send one below.</p>
+      </div>
     </section>
 
     <!-- ============================================================
-         STEPS 2-12 GO HERE, ADDED ONE AT A TIME BY script.js
+         RIGHT COLUMN: BOB
          ============================================================ -->
-    <section id="stepsArea"></section>
+    <section class="party-panel bob-panel" id="bobPanel">
+      <div class="party-header">
+        <div class="avatar bob-avatar">B</div>
+        <div class="party-name">Bob</div>
+        <div class="party-role">party 2</div>
+      </div>
+
+      <div class="party-inputs">
+        <div class="field-group">
+          <label for="bob-p">p</label>
+          <input type="text" id="bob-p" inputmode="numeric" value="7">
+        </div>
+        <div class="field-group">
+          <label for="bob-q">q</label>
+          <input type="text" id="bob-q" inputmode="numeric" value="13">
+        </div>
+        <div class="field-group">
+          <label for="bob-e">e</label>
+          <input type="text" id="bob-e" inputmode="numeric" value="5">
+        </div>
+      </div>
+      <div class="field-error" id="bob-p-error"></div>
+      <div class="field-error" id="bob-q-error"></div>
+      <div class="field-error" id="bob-e-error"></div>
+      <div class="party-error" id="bob-party-error"></div>
+
+      <div class="working-block mono" id="bob-working"></div>
+
+      <div class="key-rows" id="bob-keys"></div>
+
+      <div class="encrypting-box">
+        <div class="encrypting-title">Encrypting for Alice</div>
+        <div class="encrypting-body mono" id="bob-encrypting-preview">Type a message below to preview encryption.</div>
+        <div class="encrypting-note">One block per letter, using Alice's e and n.</div>
+      </div>
+
+      <div class="activity-box">
+        <div class="activity-title">Activity</div>
+        <ul class="activity-log" id="bob-activity"></ul>
+      </div>
+    </section>
 
   </main>
 
-  <footer class="lab-footer">
-    RSA Virtual Laboratory — offline, single-page, no external libraries. Teaching tool only, not for real secrets.
+  <!-- ============================================================
+       COMPOSER, PINNED AT THE BOTTOM
+       ============================================================ -->
+  <div class="composer-bar">
+    <div class="composer-top">
+      <div class="send-as-toggle" id="sendAsToggle">
+        <button type="button" class="send-as-btn active" data-party="alice">Alice</button>
+        <button type="button" class="send-as-btn" data-party="bob">Bob</button>
+      </div>
+      <div class="composer-hint" id="composerHint"></div>
+      <div class="composer-charnote">letters A–Z and spaces</div>
+    </div>
+    <div class="composer-row">
+      <input type="text" id="composerInput" placeholder="Type a message&hellip;" maxlength="60">
+      <button class="send-btn" id="sendBtn">&#128274; Encrypt and send</button>
+    </div>
+    <div class="composer-error" id="composerError"></div>
+  </div>
+
+  <!-- ============================================================
+       FOOTER LEGEND BAR
+       ============================================================ -->
+  <footer class="legend-bar">
+    <div class="legend-group">
+      <span class="legend-title">Key generation —</span>
+      n = p &times; q, &phi;(n) = (p&minus;1)(q&minus;1), e&middot;d &equiv; 1 mod &phi;(n)
+    </div>
+    <div class="legend-group">
+      <span class="legend-title">Message —</span>
+      C = M<sup>e</sup> mod n, M = C<sup>d</sup> mod n
+    </div>
+    <div class="legend-group">
+      <span class="legend-title">Letters —</span>
+      A = 0, B = 1, &hellip; Z = 25
+    </div>
   </footer>
 
   <script src="script.js"></script>
