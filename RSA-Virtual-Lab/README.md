@@ -31,9 +31,10 @@ No server, no build step, no `npm install`, no Python. Just open
 - Drag `index.html` into any open browser window.
 
 The page loads with Alice (p=5, q=11, e=3) and Bob (p=7, q=13, e=5) already
-filled in, so it works immediately — pick "Alice" or "Bob" in the composer's
-"Send as" control, type a message (A–Z and spaces only), and click
-**"Encrypt and send"**.
+filled in, so it works immediately — each of them has their own message box
+and "Encrypt and send" button at the bottom of their own panel. Type a
+message (A–Z and spaces only) in either box and click that party's own
+button (or just press Enter in the box) to send as them.
 
 ## 3. How Alice → Bob and Bob → Alice work
 

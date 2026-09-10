@@ -374,8 +374,14 @@ function countBlocks(entries) {
 var state = {
   alice: null,
   bob: null,
-  sendAs: "alice",
-  hasMessages: false
+  hasMessages: false,
+  sendInProgress: false,
+  // Bumped every time the conversation is cleared (by the Clear button or
+  // by a key change). animateSend checks this before each of its staged
+  // DOM updates, so that if the conversation gets cleared while a send is
+  // still animating, the in-flight animation stops adding to it instead
+  // of appending stale bubbles onto a conversation that has moved on.
+  conversationGeneration: 0
 };
 
 
@@ -431,19 +437,14 @@ function showPartyError(prefix, message) {
 // RENDERING: ENCRYPTING-FOR PREVIEW AND COMPOSER HINT
 // ==========================================================================
 
-// Rebuilds the "Encrypting for ..." preview box in one party's panel.
-// Only the panel belonging to the current sender shows live numbers; the
-// other panel shows a placeholder. Does not return anything.
+// Rebuilds the "Encrypting for ..." preview box in one party's panel,
+// reading from that same panel's OWN message box. Alice's and Bob's
+// previews are completely independent of each other. Does not return
+// anything.
 function renderEncryptingPreview(prefix) {
   var box = $(prefix + "-encrypting-preview");
+  var composerText = $(prefix + "-message").value.toUpperCase();
 
-  if (prefix !== state.sendAs) {
-    box.className = "encrypting-body mono placeholder";
-    box.textContent = "Not currently sending — switch \"Send as\" below to preview.";
-    return;
-  }
-
-  var composerText = $("composerInput").value.toUpperCase();
   if (composerText.length === 0) {
     box.className = "encrypting-body mono placeholder";
     box.textContent = "Type a message below to preview encryption.";
@@ -482,12 +483,14 @@ function updateEncryptingPreviews() {
   renderEncryptingPreview("bob");
 }
 
-// Updates the composer's muted hint line to describe whose public key the
-// next message will be encrypted with. Does not return anything.
-function updateComposerHint() {
-  var receiverPrefix = otherParty(state.sendAs);
+// Updates one party's composer hint to name whose public key their next
+// message will be encrypted with (that's always the OTHER party's public
+// key, since you encrypt for whoever is going to receive it). Does not
+// return anything.
+function updateComposerHint(prefix) {
+  var receiverPrefix = otherParty(prefix);
   var receiverParty = state[receiverPrefix];
-  var hintEl = $("composerHint");
+  var hintEl = $(prefix + "-composer-hint");
   if (receiverParty && receiverParty.ok) {
     hintEl.textContent = "encrypts with " + partyName(receiverPrefix) + "'s public key (" +
       receiverParty.e + ", " + receiverParty.n + ")";
@@ -496,9 +499,38 @@ function updateComposerHint() {
   }
 }
 
+// Enables or disables both send buttons together: sending needs the
+// sender's message encrypted with the receiver's public key, and the
+// receiver to be able to decrypt it with their own private key, so BOTH
+// parties' parameters have to be valid before either button may be used.
+// Also keeps both buttons disabled for as long as a send animation is
+// already running, so two transmissions can never overlap on the wire
+// strip. Does not return anything.
 function updateSendButtonState() {
   var bothValid = state.alice && state.bob && state.alice.ok && state.bob.ok;
-  $("sendBtn").disabled = !bothValid;
+  var enabled = bothValid && !state.sendInProgress;
+
+  $("alice-send-btn").disabled = !enabled;
+  $("bob-send-btn").disabled = !enabled;
+
+  if (state.sendInProgress) {
+    return; // leave whatever error text is showing alone while sending
+  }
+
+  var reason = "";
+  if (!bothValid) {
+    var aliceInvalid = !(state.alice && state.alice.ok);
+    var bobInvalid = !(state.bob && state.bob.ok);
+    if (aliceInvalid && bobInvalid) {
+      reason = "Both Alice's and Bob's keys need to be valid before sending.";
+    } else if (aliceInvalid) {
+      reason = "Alice's keys need to be valid before sending.";
+    } else {
+      reason = "Bob's keys need to be valid before sending.";
+    }
+  }
+  $("alice-composer-error").textContent = reason;
+  $("bob-composer-error").textContent = reason;
 }
 
 
@@ -507,6 +539,7 @@ function updateSendButtonState() {
 // ==========================================================================
 
 function showEmptyConversation() {
+  state.conversationGeneration = state.conversationGeneration + 1;
   var container = $("conversationMessages");
   container.innerHTML = "";
   var p = document.createElement("p");
@@ -518,6 +551,7 @@ function showEmptyConversation() {
 }
 
 function showConversationClearedByKeyChange() {
+  state.conversationGeneration = state.conversationGeneration + 1;
   var container = $("conversationMessages");
   container.innerHTML = "";
   var note = document.createElement("p");
@@ -596,14 +630,29 @@ var WIRE_TRAVEL_MS = 900;
 var AVATAR_PULSE_MS = 600;
 var SHORT_PAUSE_MS = 150;
 
+// True if the conversation has been cleared (by the Clear button or a key
+// change) since myGeneration was captured -- meaning an in-flight send
+// animation should stop where it is rather than keep appending to a
+// conversation that has moved on. Returns true or false.
+function conversationWasClearedSince(myGeneration) {
+  return state.conversationGeneration !== myGeneration;
+}
+
 // Plays the full send sequence for one message exchange: the sender
 // bubble fades in, then the wire strip appears and its ciphertext blocks
 // travel across, then the receiving avatar pulses, then the receiver
 // bubble fades in with the decrypted result. Also writes both parties'
 // activity log entries and keeps the conversation scrolled to the newest
-// message. Uses CSS transitions/animations plus setTimeout only -- no
-// promises, no async/await. Does not return anything.
+// message. Both send buttons are disabled for the whole sequence, so a
+// second send can never start while one is still animating. Uses CSS
+// transitions/animations plus setTimeout only -- no promises, no
+// async/await. Does not return anything.
 function animateSend(exchange) {
+  var myGeneration = state.conversationGeneration;
+  state.sendInProgress = true;
+  $("alice-send-btn").disabled = true;
+  $("bob-send-btn").disabled = true;
+
   var conversationMessages = $("conversationMessages");
   var emptyMsg = $("conversationEmpty");
   if (emptyMsg) {
@@ -618,6 +667,12 @@ function animateSend(exchange) {
   addActivityEntry(exchange.senderPrefix, "sent", exchange.plaintext, countBlocks(exchange.numberEntries));
 
   setTimeout(function afterSenderBubble() {
+    if (conversationWasClearedSince(myGeneration)) {
+      state.sendInProgress = false;
+      updateSendButtonState();
+      return;
+    }
+
     conversationMessages.appendChild(pieces.wireStrip);
     pieces.wireStrip.scrollIntoView({ behavior: "smooth", block: "end" });
 
@@ -629,6 +684,12 @@ function animateSend(exchange) {
     blocksEl.classList.add("arrived");
 
     setTimeout(function afterWireTravel() {
+      if (conversationWasClearedSince(myGeneration)) {
+        state.sendInProgress = false;
+        updateSendButtonState();
+        return;
+      }
+
       var receiverAvatar = document.querySelector("#" + exchange.receiverPrefix + "Panel .avatar");
       receiverAvatar.classList.add("receiving");
       setTimeout(function stopPulse() {
@@ -636,9 +697,15 @@ function animateSend(exchange) {
       }, AVATAR_PULSE_MS);
 
       setTimeout(function afterPulseStarts() {
+        state.sendInProgress = false;
+        if (conversationWasClearedSince(myGeneration)) {
+          updateSendButtonState();
+          return;
+        }
         conversationMessages.appendChild(pieces.receiverRow);
         pieces.receiverRow.scrollIntoView({ behavior: "smooth", block: "end" });
         addActivityEntry(exchange.receiverPrefix, "read", exchange.decryptedText, countBlocks(exchange.numberEntries));
+        updateSendButtonState();
       }, SHORT_PAUSE_MS);
     }, WIRE_TRAVEL_MS + SHORT_PAUSE_MS);
   }, BUBBLE_FADE_MS + SHORT_PAUSE_MS);
@@ -666,7 +733,8 @@ function onPartyInputChange(prefix) {
   showFieldErrors(prefix, party.errors);
   showPartyError(prefix, party.partyError);
   renderKeys(prefix, party);
-  updateComposerHint();
+  updateComposerHint("alice"); // Alice's hint names Bob's key, so either
+  updateComposerHint("bob");   // party changing can affect either hint
   updateEncryptingPreviews();
   updateSendButtonState();
 
@@ -675,48 +743,35 @@ function onPartyInputChange(prefix) {
   }
 }
 
-function onSendAsChange(prefix) {
-  state.sendAs = prefix;
-  var buttons = document.querySelectorAll(".send-as-btn");
-  for (var i = 0; i < buttons.length; i = i + 1) {
-    var btn = buttons[i];
-    if (btn.getAttribute("data-party") === prefix) {
-      btn.classList.add("active");
-    } else {
-      btn.classList.remove("active");
-    }
-  }
-  updateComposerHint();
-  updateEncryptingPreviews();
-}
-
-function onComposerInput() {
-  updateEncryptingPreviews();
-}
-
-function onSendClick() {
-  var senderPrefix = state.sendAs;
+// Handles a send attempt from one party's own composer -- either their
+// "Encrypt and send" button, or pressing Enter in their message box.
+// senderPrefix is "alice" or "bob". Does not return anything.
+function onSendFromParty(senderPrefix) {
   var receiverPrefix = otherParty(senderPrefix);
   var senderParty = state[senderPrefix];
   var receiverParty = state[receiverPrefix];
+  var errorEl = $(senderPrefix + "-composer-error");
 
+  if (state.sendInProgress) {
+    return; // a send is already animating; ignore extra Enter/clicks
+  }
   if (!senderParty || !senderParty.ok || !receiverParty || !receiverParty.ok) {
-    $("composerError").textContent = "Fix both parties' keys before sending.";
-    return;
+    return; // updateSendButtonState already explains why in both panels
   }
 
-  var raw = $("composerInput").value;
+  var inputEl = $(senderPrefix + "-message");
+  var raw = inputEl.value;
   var checked = validateMessageCharacters(raw);
   if (!checked.ok) {
-    $("composerError").textContent = "\"" + checked.badChar + "\" is not allowed — only A–Z and spaces.";
+    errorEl.textContent = "\"" + checked.badChar + "\" is not allowed — only A–Z and spaces.";
     return;
   }
   if (checked.cleaned.trim().length === 0) {
-    $("composerError").textContent = "Type a message first.";
+    errorEl.textContent = "Type a message first.";
     return;
   }
 
-  $("composerError").textContent = "";
+  errorEl.textContent = "";
 
   var numberEntries = textToNumbers(checked.cleaned);
   var cipherEntries = encryptMessage(numberEntries, receiverParty.e, receiverParty.n);
@@ -740,8 +795,8 @@ function onSendClick() {
   };
 
   animateSend(exchange);
-  $("composerInput").value = "";
-  updateEncryptingPreviews();
+  inputEl.value = ""; // only this party's own box is cleared
+  renderEncryptingPreview(senderPrefix);
 }
 
 function onShowWorkingToggle() {
@@ -777,17 +832,33 @@ for (var i = 0; i < PARTY_INPUT_IDS.length; i = i + 1) {
   })(inputId, prefixForInput);
 }
 
-var sendAsButtons = document.querySelectorAll(".send-as-btn");
-for (var j = 0; j < sendAsButtons.length; j = j + 1) {
-  (function attachSendAsListener(btn) {
-    btn.addEventListener("click", function () {
-      onSendAsChange(btn.getAttribute("data-party"));
-    });
-  })(sendAsButtons[j]);
-}
+$("alice-message").addEventListener("input", function () {
+  renderEncryptingPreview("alice");
+});
+$("bob-message").addEventListener("input", function () {
+  renderEncryptingPreview("bob");
+});
 
-$("composerInput").addEventListener("input", onComposerInput);
-$("sendBtn").addEventListener("click", onSendClick);
+// Pressing Enter in a party's own message box sends from that party,
+// exactly like clicking their own "Encrypt and send" button.
+$("alice-message").addEventListener("keydown", function (event) {
+  if (event.key === "Enter") {
+    onSendFromParty("alice");
+  }
+});
+$("bob-message").addEventListener("keydown", function (event) {
+  if (event.key === "Enter") {
+    onSendFromParty("bob");
+  }
+});
+
+$("alice-send-btn").addEventListener("click", function () {
+  onSendFromParty("alice");
+});
+$("bob-send-btn").addEventListener("click", function () {
+  onSendFromParty("bob");
+});
+
 $("showWorkingToggle").addEventListener("change", onShowWorkingToggle);
 $("clearBtn").addEventListener("click", onClearClick);
 

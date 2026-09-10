@@ -15,10 +15,12 @@
   --muted: #6b7280;
 
   --alice-color: #1d5fd6;
+  --alice-color-dark: #15479f;
   --alice-bg: #e8f0fe;
   --alice-bg-strong: #d6e6fd;
 
   --bob-color: #1f9d55;
+  --bob-color-dark: #167a41;
   --bob-bg: #e7f8ee;
   --bob-bg-strong: #d3f2e1;
 
@@ -515,104 +517,76 @@ body {
 }
 
 /* --------------------------------------------------------------------
-   Composer, pinned at the bottom
+   Composer -- one per party, living inside that party's own panel
+   (below its Activity log), tinted to that party's colour.
    -------------------------------------------------------------------- */
 
-.composer-bar {
-  position: sticky;
-  bottom: 0;
-  background: var(--card-bg);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-  padding: 10px 20px;
-  max-width: 1300px;
-  margin: 16px auto 0 auto;
-  border-radius: 12px 12px 0 0;
+.composer-box {
+  margin-top: 14px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
 }
 
-.composer-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.send-as-toggle {
-  display: inline-flex;
-  border: 2px solid var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.send-as-btn {
-  border: none;
-  background: var(--card-bg);
-  padding: 6px 16px;
+.composer-label {
+  display: block;
   font-weight: 700;
-  cursor: pointer;
-  color: var(--muted);
-}
-
-.send-as-btn.active[data-party="alice"] {
-  background: var(--alice-color);
-  color: white;
-}
-
-.send-as-btn.active[data-party="bob"] {
-  background: var(--bob-color);
-  color: white;
+  font-size: 0.88em;
+  margin-bottom: 4px;
 }
 
 .composer-hint {
   color: var(--muted);
-  font-size: 0.88em;
-  flex: 1 1 auto;
-}
-
-.composer-charnote {
-  color: var(--muted);
   font-size: 0.82em;
-  margin-left: auto;
+  margin-bottom: 6px;
 }
 
-.composer-row {
-  display: flex;
-  gap: 10px;
-}
-
-.composer-row input {
-  flex: 1 1 auto;
-  /* Flex items default to min-width: auto, which stops them shrinking
-     smaller than their own content -- on a narrow phone screen that was
-     pushing the "Encrypt and send" button partly off the edge instead of
-     letting the text input give up some of its width. min-width: 0
-     allows it to shrink as far as needed. */
-  min-width: 0;
-  padding: 10px 12px;
-  font-size: 1em;
+.composer-box input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.95em;
   border: 2px solid var(--border);
   border-radius: 8px;
+  margin-bottom: 6px;
 }
 
-.composer-row input:focus {
+.composer-box input:focus {
   outline: none;
   border-color: var(--text);
 }
 
+.composer-charnote {
+  color: var(--muted);
+  font-size: 0.78em;
+  margin-bottom: 8px;
+}
+
 .send-btn {
-  background: var(--text);
+  width: 100%;
   color: white;
   border: none;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 10px 16px;
   font-weight: 700;
   cursor: pointer;
-  flex: 0 0 auto;
 }
 
-.send-btn:hover {
-  background: #000;
+/* Alice's and Bob's send buttons are tinted to their own party colour so
+   the two composers stay visually distinct, same as their key rows and
+   message bubbles elsewhere on the page. */
+.send-btn.alice-send-btn {
+  background: var(--alice-color);
+}
+
+.send-btn.alice-send-btn:hover:not(:disabled) {
+  background: var(--alice-color-dark);
+}
+
+.send-btn.bob-send-btn {
+  background: var(--bob-color);
+}
+
+.send-btn.bob-send-btn:hover:not(:disabled) {
+  background: var(--bob-color-dark);
 }
 
 .send-btn:disabled {
@@ -685,16 +659,6 @@ body {
 
   .field-group {
     flex: 1 1 28%;
-  }
-
-  .composer-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .composer-charnote {
-    margin-left: 0;
   }
 
   .bubble {

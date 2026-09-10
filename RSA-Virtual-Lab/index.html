@@ -58,6 +58,15 @@
         <div class="activity-title">Activity</div>
         <ul class="activity-log" id="alice-activity"></ul>
       </div>
+
+      <div class="composer-box">
+        <label for="alice-message" class="composer-label">Alice's message</label>
+        <div class="composer-hint" id="alice-composer-hint"></div>
+        <input type="text" id="alice-message" placeholder="Type a message" maxlength="60">
+        <div class="composer-charnote">letters A–Z and spaces</div>
+        <button class="send-btn alice-send-btn" id="alice-send-btn">&#128274; Encrypt and send</button>
+        <div class="composer-error" id="alice-composer-error"></div>
+      </div>
     </section>
 
     <!-- ============================================================
@@ -120,28 +129,18 @@
         <div class="activity-title">Activity</div>
         <ul class="activity-log" id="bob-activity"></ul>
       </div>
+
+      <div class="composer-box">
+        <label for="bob-message" class="composer-label">Bob's message</label>
+        <div class="composer-hint" id="bob-composer-hint"></div>
+        <input type="text" id="bob-message" placeholder="Type a message" maxlength="60">
+        <div class="composer-charnote">letters A–Z and spaces</div>
+        <button class="send-btn bob-send-btn" id="bob-send-btn">&#128274; Encrypt and send</button>
+        <div class="composer-error" id="bob-composer-error"></div>
+      </div>
     </section>
 
   </main>
-
-  <!-- ============================================================
-       COMPOSER, PINNED AT THE BOTTOM
-       ============================================================ -->
-  <div class="composer-bar">
-    <div class="composer-top">
-      <div class="send-as-toggle" id="sendAsToggle">
-        <button type="button" class="send-as-btn active" data-party="alice">Alice</button>
-        <button type="button" class="send-as-btn" data-party="bob">Bob</button>
-      </div>
-      <div class="composer-hint" id="composerHint"></div>
-      <div class="composer-charnote">letters A–Z and spaces</div>
-    </div>
-    <div class="composer-row">
-      <input type="text" id="composerInput" placeholder="Type a message&hellip;" maxlength="60">
-      <button class="send-btn" id="sendBtn">&#128274; Encrypt and send</button>
-    </div>
-    <div class="composer-error" id="composerError"></div>
-  </div>
 
   <!-- ============================================================
        FOOTER LEGEND BAR
